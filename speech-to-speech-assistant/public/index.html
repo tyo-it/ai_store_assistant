@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenAI Realtime Voice Assistant</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #333;
+      }
+
+      .container {
+        background: white;
+        border-radius: 24px;
+        padding: 2.5rem;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+        max-width: 700px;
+        width: 95%;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .header h1 {
+        color: #2a5298;
+        margin-bottom: 0.5rem;
+        font-size: 2rem;
+      }
+
+      .header p {
+        color: #666;
+        font-size: 1.1rem;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        margin-top: 1rem;
+        font-weight: 500;
+      }
+
+      .status-badge.connected {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .status-badge.connecting {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+      }
+
+      .status-badge.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .chat-container {
+        height: 350px;
+        overflow-y: auto;
+        border: 2px solid #e9ecef;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        background: #f8f9fa;
+      }
+
+      .message {
+        margin-bottom: 1rem;
+        padding: 1rem 1.5rem;
+        border-radius: 18px;
+        max-width: 85%;
+        word-wrap: break-word;
+      }
+
+      .message.user {
+        background: #2a5298;
+        color: white;
+        margin-left: auto;
+      }
+
+      .message.assistant {
+        background: white;
+        color: #333;
+        border: 1px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .message.transcript {
+        background: #e3f2fd;
+        color: #1565c0;
+        font-style: italic;
+        border-left: 4px solid #2196f3;
+      }
+
+      .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .voice-controls {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+      }
+
+      .voice-button {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 1.2rem 2rem;
+        border-radius: 50px;
+        cursor: pointer;
+        font-size: 1.1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        flex: 1;
+        position: relative;
+      }
+
+      .voice-button:hover:not(:disabled) {
+        background: #218838;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+      }
+
+      .voice-button:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+      }
+
+      .voice-button.listening {
+        background: #dc3545;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+        }
+        70% {
+          transform: scale(1.05);
+          box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+        }
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+        }
+      }
+
+      .interrupt-button {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 0.8rem 1.5rem;
+        border-radius: 25px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background 0.3s;
+      }
+
+      .interrupt-button:hover:not(:disabled) {
+        background: #5a6268;
+      }
+
+      .interrupt-button:disabled {
+        background: #adb5bd;
+        cursor: not-allowed;
+      }
+
+      .settings {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .voice-select {
+        padding: 0.7rem 1rem;
+        border: 2px solid #e9ecef;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        outline: none;
+        background: white;
+      }
+
+      .voice-select:focus {
+        border-color: #2a5298;
+      }
+
+      .voice-select:disabled {
+        background: #f8f9fa;
+        cursor: not-allowed;
+      }
+
+      .text-input {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .text-input input {
+        flex: 1;
+        padding: 1rem 1.5rem;
+        border: 2px solid #e9ecef;
+        border-radius: 25px;
+        outline: none;
+        font-size: 1rem;
+      }
+
+      .text-input input:focus {
+        border-color: #2a5298;
+      }
+
+      .text-input input:disabled {
+        background: #f8f9fa;
+        cursor: not-allowed;
+      }
+
+      .text-input button {
+        background: #2a5298;
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 25px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+        transition: background 0.3s;
+      }
+
+      .text-input button:hover:not(:disabled) {
+        background: #1e3c72;
+      }
+
+      .text-input button:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+      }
+
+      .status {
+        text-align: center;
+        padding: 1rem;
+        font-size: 0.95rem;
+        color: #666;
+        background: #f8f9fa;
+        border-radius: 12px;
+        margin-top: 1rem;
+      }
+
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-radius: 16px;
+      }
+
+      .feature {
+        text-align: center;
+        padding: 1rem;
+      }
+
+      .feature-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .feature h3 {
+        color: #2a5298;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+      }
+
+      .feature p {
+        color: #666;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🎤 OpenAI Realtime Voice Assistant</h1>
+        <p>Experience natural voice conversations with AI</p>
+        <div class="status-badge connecting" id="connectionStatus">
+          Connecting...
+        </div>
+      </div>
+
+      <div class="chat-container" id="chatContainer">
+        <div class="message assistant">
+          <strong>AI Assistant:</strong>
+          <span class="message-content"
+            >Hello! I'm your OpenAI Realtime voice assistant. I can understand
+            and respond to your voice in real-time. Hold the microphone button
+            and speak to me!</span
+          >
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="voice-controls">
+          <button class="voice-button" id="voiceButton" disabled>
+            🎤 Hold to Talk
+          </button>
+          <button class="interrupt-button" id="interruptButton" disabled>
+            ⏹️ Stop
+          </button>
+        </div>
+
+        <div class="settings">
+          <select class="voice-select" id="voiceSelect" disabled>
+            <option value="alloy">Alloy</option>
+            <option value="ash">Ash</option>
+            <option value="ballad">Ballad</option>
+            <option value="coral">Coral</option>
+            <option value="echo">Echo</option>
+            <option value="sage">Sage</option>
+            <option value="shimmer">Shimmer</option>
+            <option value="verse">Verse</option>
+            <option value="marin">Marin</option>
+            <option value="cedar">Cedar</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="text-input">
+        <input
+          type="text"
+          id="textInput"
+          placeholder="Or type your message here..."
+          disabled
+        />
+        <button id="sendButton" disabled>Send</button>
+      </div>
+
+      <div class="status" id="status">Connecting to OpenAI Realtime API...</div>
+
+      <div class="features">
+        <div class="feature">
+          <div class="feature-icon">🎙️</div>
+          <h3>Real-time Voice</h3>
+          <p>Natural conversation with minimal latency</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">🧠</div>
+          <h3>Smart AI</h3>
+          <p>Powered by OpenAI's latest models</p>
+        </div>
+        <div class="feature">
+          <div class="feature-icon">🔊</div>
+          <h3>Multiple Voices</h3>
+          <p>Choose from 10 different AI voices</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      class RealtimeVoiceClient {
+        constructor() {
+          this.socket = io();
+          this.isRecording = false;
+          this.isConnected = false;
+          this.mediaRecorder = null;
+          this.audioContext = null;
+          this.currentAudio = null;
+          this.mode = "unknown"; // 'realtime' or 'fallback'
+          this.speechRecognition = null;
+          this.speechSynthesis = window.speechSynthesis;
+
+          // Speech settings (will be updated from server)
+          this.speechRate = 1.0; // Default fallback
+          this.speechPitch = 1.0; // Default fallback
+
+          this.initializeElements();
+          this.setupEventListeners();
+          this.setupSocketHandlers();
+          this.initializeSpeechRecognition();
+        }
+        initializeElements() {
+          this.chatContainer = document.getElementById("chatContainer");
+          this.voiceButton = document.getElementById("voiceButton");
+          this.interruptButton = document.getElementById("interruptButton");
+          this.voiceSelect = document.getElementById("voiceSelect");
+          this.textInput = document.getElementById("textInput");
+          this.sendButton = document.getElementById("sendButton");
+          this.status = document.getElementById("status");
+          this.connectionStatus = document.getElementById("connectionStatus");
+        }
+
+        setupEventListeners() {
+          // Voice button (hold to talk)
+          this.voiceButton.addEventListener("mousedown", () =>
+            this.startRecording()
+          );
+          this.voiceButton.addEventListener("mouseup", () =>
+            this.stopRecording()
+          );
+          this.voiceButton.addEventListener("mouseleave", () =>
+            this.stopRecording()
+          );
+
+          // Touch events for mobile
+          this.voiceButton.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            this.startRecording();
+          });
+          this.voiceButton.addEventListener("touchend", (e) => {
+            e.preventDefault();
+            this.stopRecording();
+          });
+
+          // Interrupt button
+          this.interruptButton.addEventListener("click", () =>
+            this.interrupt()
+          );
+
+          // Voice selection
+          this.voiceSelect.addEventListener("change", (e) => {
+            this.socket.emit("change-voice", e.target.value);
+          });
+
+          // Text input
+          this.sendButton.addEventListener("click", () =>
+            this.sendTextMessage()
+          );
+          this.textInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") this.sendTextMessage();
+          });
+        }
+
+        setupSocketHandlers() {
+          this.socket.on("connect", () => {
+            console.log("Connected to server");
+          });
+
+          this.socket.on("status", (data) => {
+            if (data.connected) {
+              this.isConnected = true;
+              this.mode = data.mode || "unknown";
+
+              // Store speech settings from server
+              this.speechRate = data.speechRate || 1.0;
+              this.speechPitch = data.speechPitch || 1.0;
+              console.log(
+                `🎤 Speech settings: rate=${this.speechRate}, pitch=${this.speechPitch}`
+              );
+
+              if (this.mode === "fallback") {
+                this.updateConnectionStatus(
+                  "connected",
+                  "Fallback Mode - Browser Speech"
+                );
+                this.updateStatus(
+                  "Ready! Using browser speech recognition and synthesis"
+                );
+              } else {
+                this.updateConnectionStatus(
+                  "connected",
+                  "Connected to OpenAI Realtime"
+                );
+                this.updateStatus("Ready! Hold the microphone button to talk");
+              }
+
+              this.enableControls();
+            } else {
+              this.updateStatus(data.message || "Status update received");
+            }
+          });
+          this.socket.on("audio-response", (data) => {
+            if (data.type === "audio-delta" && data.audio) {
+              this.playAudioDelta(data.audio);
+            }
+          });
+
+          this.socket.on("text-response", (data) => {
+            if (data.type === "text-delta" && data.text) {
+              this.appendToLastMessage("assistant", data.text);
+            } else if (data.type === "text-complete" && data.text) {
+              this.displayMessage("assistant", data.text);
+
+              // Always use text-to-speech to read the response when in fallback mode
+              // (In realtime mode, audio is handled directly via audio-response events)
+              if (this.mode === "fallback") {
+                this.speakText(data.text);
+              }
+            }
+          });
+
+          this.socket.on("response-complete", (data) => {
+            this.updateStatus("Response complete. Ready for next input.");
+          });
+
+          this.socket.on("speech-status", (data) => {
+            if (data.type === "speech-started") {
+              this.updateStatus("🎙️ Listening...");
+            } else if (data.type === "speech-stopped") {
+              this.updateStatus("🤔 Processing...");
+            }
+          });
+
+          this.socket.on("transcription", (data) => {
+            if (data.text) {
+              this.displayMessage("transcript", `You said: "${data.text}"`);
+            }
+          });
+
+          this.socket.on("error", (error) => {
+            console.error("Socket error:", error);
+            this.updateConnectionStatus("error", "Error: " + error);
+            this.updateStatus("Error: " + error);
+          });
+
+          this.socket.on("disconnect", () => {
+            this.isConnected = false;
+            this.updateConnectionStatus("connecting", "Disconnected");
+            this.disableControls();
+          });
+        }
+
+        async startRecording() {
+          if (!this.isConnected || this.isRecording) return;
+
+          if (this.mode === "fallback") {
+            // Use browser speech recognition for fallback mode
+            if (this.speechRecognition) {
+              this.speechRecognition.start();
+              this.isRecording = true;
+              this.voiceButton.textContent = "🎤 Listening...";
+              this.voiceButton.classList.add("listening");
+              this.updateStatus("🎤 Speak now...");
+            } else {
+              this.updateStatus(
+                "Speech recognition not supported in this browser"
+              );
+            }
+            return;
+          }
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                sampleRate: 24000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+
+            this.audioContext = new AudioContext({ sampleRate: 24000 });
+            const source = this.audioContext.createMediaStreamSource(stream);
+
+            // Create a script processor for real-time audio data
+            const processor = this.audioContext.createScriptProcessor(
+              4096,
+              1,
+              1
+            );
+            source.connect(processor);
+            processor.connect(this.audioContext.destination);
+
+            processor.onaudioprocess = (event) => {
+              if (this.isRecording) {
+                const audioData = event.inputBuffer.getChannelData(0);
+                const pcm16Data = this.convertToPCM16(audioData);
+                const base64Audio = this.arrayBufferToBase64(pcm16Data);
+                this.socket.emit("audio-stream", base64Audio);
+              }
+            };
+
+            this.mediaStream = stream;
+            this.processor = processor;
+            this.isRecording = true;
+
+            this.voiceButton.textContent = "🎙️ Recording...";
+            this.voiceButton.classList.add("listening");
+            this.updateStatus("🎙️ Hold button and speak...");
+          } catch (error) {
+            console.error("Error starting recording:", error);
+            this.updateStatus(
+              "Error accessing microphone. Please check permissions."
+            );
+          }
+        }
+
+        stopRecording() {
+          if (!this.isRecording) return;
+
+          this.isRecording = false;
+
+          // Handle fallback mode with speech recognition
+          if (this.mode === "fallback" && this.speechRecognition) {
+            this.speechRecognition.stop();
+          } else {
+            // Handle Realtime API mode
+            if (this.mediaStream) {
+              this.mediaStream.getTracks().forEach((track) => track.stop());
+            }
+
+            if (this.processor) {
+              this.processor.disconnect();
+            }
+
+            if (this.audioContext) {
+              this.audioContext.close();
+            }
+
+            this.socket.emit("audio-stream-end");
+          }
+
+          this.voiceButton.textContent = "🎤 Hold to Talk";
+          this.voiceButton.classList.remove("listening");
+          this.updateStatus("Processing your message...");
+        }
+
+        convertToPCM16(audioData) {
+          const pcm16 = new Int16Array(audioData.length);
+          for (let i = 0; i < audioData.length; i++) {
+            pcm16[i] = Math.max(-32768, Math.min(32767, audioData[i] * 32768));
+          }
+          // Convert to Uint8Array for browser compatibility
+          return new Uint8Array(pcm16.buffer);
+        }
+
+        arrayBufferToBase64(buffer) {
+          let binary = "";
+          const bytes = new Uint8Array(buffer);
+          const len = bytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return window.btoa(binary);
+        }
+
+        interrupt() {
+          if (this.currentAudio) {
+            this.currentAudio.pause();
+            this.currentAudio = null;
+          }
+          this.socket.emit("interrupt");
+          this.updateStatus("Interrupted. Ready for next input.");
+        }
+
+        sendTextMessage() {
+          const message = this.textInput.value.trim();
+          if (message && this.isConnected) {
+            this.displayMessage("user", message);
+            this.socket.emit("text-message", message);
+            this.textInput.value = "";
+            this.updateStatus("Processing...");
+          }
+        }
+
+        displayMessage(sender, message) {
+          const messageDiv = document.createElement("div");
+          messageDiv.className = `message ${sender}`;
+
+          if (sender === "assistant") {
+            messageDiv.innerHTML = `<strong>AI Assistant:</strong> <span class="message-content">${message}</span>`;
+          } else if (sender === "transcript") {
+            messageDiv.innerHTML = message;
+          } else {
+            messageDiv.innerHTML = `<strong>You:</strong> ${message}`;
+          }
+
+          this.chatContainer.appendChild(messageDiv);
+          this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+
+          return messageDiv;
+        }
+
+        appendToLastMessage(sender, text) {
+          const messages = this.chatContainer.querySelectorAll(
+            `.message.${sender}`
+          );
+          let lastMessage = messages[messages.length - 1];
+
+          if (!lastMessage) {
+            lastMessage = this.displayMessage(sender, "");
+          }
+
+          const content = lastMessage.querySelector(".message-content");
+          if (content) {
+            content.textContent += text;
+          } else {
+            lastMessage.innerHTML += text;
+          }
+
+          this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        }
+
+        async playAudioDelta(audioData) {
+          try {
+            // Create audio from base64 PCM16 data
+            const audioBuffer = this.base64ToArrayBuffer(audioData);
+
+            if (!this.audioContext) {
+              this.audioContext = new AudioContext();
+            }
+
+            // For PCM16 data, we need to create an AudioBuffer manually
+            const pcm16Array = new Int16Array(audioBuffer);
+            const audioBufferObj = this.audioContext.createBuffer(
+              1,
+              pcm16Array.length,
+              24000
+            );
+            const channelData = audioBufferObj.getChannelData(0);
+
+            // Convert PCM16 to float32
+            for (let i = 0; i < pcm16Array.length; i++) {
+              channelData[i] = pcm16Array[i] / 32768;
+            }
+
+            const source = this.audioContext.createBufferSource();
+            source.buffer = audioBufferObj;
+            source.connect(this.audioContext.destination);
+            source.start();
+
+            this.currentAudio = source;
+          } catch (error) {
+            console.error("Error playing audio:", error);
+          }
+        }
+
+        base64ToArrayBuffer(base64) {
+          const binaryString = atob(base64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          return bytes.buffer;
+        }
+
+        updateConnectionStatus(type, message) {
+          this.connectionStatus.className = `status-badge ${type}`;
+          this.connectionStatus.textContent = message;
+        }
+
+        updateStatus(message) {
+          this.status.textContent = message;
+        }
+
+        speakText(text) {
+          // Use Web Speech API for text-to-speech in fallback mode
+          if ("speechSynthesis" in window) {
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+
+            // Try to match the selected voice or use a default
+            const voices = window.speechSynthesis.getVoices();
+            const selectedVoice = this.voiceSelect.value;
+
+            // Map OpenAI voice names to similar browser voices
+            const voiceMap = {
+              alloy: "Google US English",
+              echo: "Alex",
+              fable: "Samantha",
+              onyx: "Daniel",
+              nova: "Karen",
+              shimmer: "Tessa",
+            };
+
+            const preferredVoiceName = voiceMap[selectedVoice] || selectedVoice;
+            const matchedVoice = voices.find(
+              (voice) =>
+                voice.name.includes(preferredVoiceName) ||
+                voice.name.includes("English")
+            );
+
+            if (matchedVoice) {
+              utterance.voice = matchedVoice;
+            }
+
+            // Use dynamic speech settings from server
+            utterance.rate = this.speechRate || 0.3; // Fallback to 0.3 if not set
+            utterance.pitch = this.speechPitch || 1.0; // Fallback to 1.0 if not set
+            utterance.volume = 1.0;
+
+            utterance.onstart = () => {
+              this.updateStatus("🔊 AI is speaking...");
+            };
+
+            utterance.onend = () => {
+              this.updateStatus("Ready for next input.");
+            };
+
+            utterance.onerror = (event) => {
+              console.error("Speech synthesis error:", event);
+              this.updateStatus("Ready for next input.");
+            };
+
+            window.speechSynthesis.speak(utterance);
+          } else {
+            console.warn("Speech synthesis not supported in this browser");
+            this.updateStatus("Ready for next input.");
+          }
+        }
+
+        loadSpeechSynthesisVoices() {
+          // Load browser voices when in fallback mode
+          if ("speechSynthesis" in window) {
+            const loadVoices = () => {
+              const voices = window.speechSynthesis.getVoices();
+              if (voices.length > 0 && this.mode === "fallback") {
+                console.log(
+                  "Available speech synthesis voices:",
+                  voices.map((v) => v.name)
+                );
+                // Voices are available, but we'll keep using the existing OpenAI voice names
+                // for consistency, and map them in speakText()
+              }
+            };
+
+            // Load voices immediately if available
+            loadVoices();
+
+            // Also load when voices change (some browsers load them asynchronously)
+            if (window.speechSynthesis.addEventListener) {
+              window.speechSynthesis.addEventListener(
+                "voiceschanged",
+                loadVoices
+              );
+            }
+          }
+        }
+
+        enableControls() {
+          this.voiceButton.disabled = false;
+          this.interruptButton.disabled = false;
+          this.voiceSelect.disabled = false;
+          this.textInput.disabled = false;
+          this.sendButton.disabled = false;
+        }
+
+        disableControls() {
+          this.voiceButton.disabled = true;
+          this.interruptButton.disabled = true;
+          this.voiceSelect.disabled = true;
+          this.textInput.disabled = true;
+          this.sendButton.disabled = true;
+        }
+
+        initializeSpeechRecognition() {
+          // Initialize Web Speech API for fallback mode
+          if ("webkitSpeechRecognition" in window) {
+            this.speechRecognition = new webkitSpeechRecognition();
+          } else if ("SpeechRecognition" in window) {
+            this.speechRecognition = new SpeechRecognition();
+          }
+
+          if (this.speechRecognition) {
+            this.speechRecognition.continuous = false;
+            this.speechRecognition.interimResults = false;
+            this.speechRecognition.lang = "en-US";
+
+            this.speechRecognition.onstart = () => {
+              console.log("🎤 Browser speech recognition started");
+              this.updateStatus(
+                "🎤 Listening with browser speech recognition..."
+              );
+            };
+
+            this.speechRecognition.onresult = (event) => {
+              const transcript = event.results[0][0].transcript;
+              console.log("📝 Speech recognized:", transcript);
+              this.displayMessage("user", `🎤 "${transcript}"`);
+              this.socket.emit("text-message", transcript);
+              this.updateStatus("Processing...");
+            };
+
+            this.speechRecognition.onerror = (event) => {
+              console.error("Speech recognition error:", event.error);
+              this.updateStatus("Speech recognition error: " + event.error);
+            };
+
+            this.speechRecognition.onend = () => {
+              console.log("🤐 Browser speech recognition ended");
+              this.voiceButton.textContent = "🎤 Hold to Talk";
+              this.voiceButton.classList.remove("listening");
+              this.isRecording = false;
+            };
+          }
+
+          // Initialize speech synthesis voices
+          this.loadSpeechSynthesisVoices();
+        }
+      }
+
+      // Initialize the client when the page loads
+      window.addEventListener("DOMContentLoaded", () => {
+        new RealtimeVoiceClient();
+      });
+    </script>
+  </body>
+</html>
