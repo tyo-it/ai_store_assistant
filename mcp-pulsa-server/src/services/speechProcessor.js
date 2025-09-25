@@ -128,6 +128,7 @@ class SpeechProcessor {
   }
 
   detectPulsaIntent(text) {
+    // return true; // Always true for broader matching
     return this.patterns.intent.some(pattern => pattern.test(text));
   }
 
@@ -140,7 +141,7 @@ class SpeechProcessor {
         phoneNumber = phoneNumber.replace(/\s+/g, '');
         
         // Validate basic format
-        if (/^((\+62|62|0)?8\d{8,12})$/.test(phoneNumber)) {
+        if (/^((\+62|62|0)?8\d{8,14})$/.test(phoneNumber)) {
           return phoneNumber;
         }
       }

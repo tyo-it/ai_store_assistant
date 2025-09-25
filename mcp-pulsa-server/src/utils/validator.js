@@ -23,7 +23,7 @@ export class PulsaValidator {
 
     // Phone number schema
     this.phoneSchema = Joi.string()
-      .pattern(/^(\+62|62|0)8\d{8,12}$/)
+      .pattern(/^(\+62|62|0)8\d{8,13}$/)
       .required()
       .messages({
         'string.pattern.base': 'Phone number must be a valid Indonesian mobile number'

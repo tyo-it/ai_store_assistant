@@ -226,17 +226,77 @@ class FallbackVoiceAssistant {
                 // Use MCP to process the speech command for more sophisticated parsing
                 const result = await this.pulsaService.processPulsaCommand(message, this.sessionId);
                 
-                const responseText = result.message || 'Saya membutuhkan nomor telepon dan jumlah pulsa yang ingin dibeli. Contoh: "Beli pulsa 50 ribu untuk nomor 081234567890"';
-                
-                this.emit('response.text.complete', { text: responseText });
-                this.emit('response.done', { 
-                    response: { 
-                        text: responseText,
-                        timestamp: new Date().toISOString(),
-                        needsConfirmation: result.needsConfirmation || false,
-                        confirmationData: result.data || null
+                // Check if auto-purchase should proceed
+                if (result.raw && result.raw.understood && result.raw.readyToPurchase) {
+                    console.log('🚀 [FALLBACK] Auto-purchasing pulsa - readyToPurchase is true');
+                    
+                    try {
+                        // Store the purchase details
+                        this.pendingPurchase = {
+                            phoneNumber: result.raw.phoneNumber,
+                            amount: result.raw.amount,
+                            provider: result.raw.provider
+                        };
+                        
+                        // Automatically proceed with purchase
+                        const purchaseResult = await this.pulsaService.purchasePulsa(
+                            result.raw.phoneNumber,
+                            result.raw.amount,
+                            true // confirmed = true for auto-purchase
+                        );
+                        
+                        console.log('💳 [FALLBACK] Auto-purchase result:', purchaseResult);
+                        
+                        // Send purchase outcome
+                        let responseText;
+                        if (purchaseResult.success) {
+                            responseText = `Pembelian pulsa berhasil! ${purchaseResult.message}`;
+                        } else {
+                            responseText = `Pembelian pulsa gagal: ${purchaseResult.message}`;
+                        }
+                        
+                        // Clear pending purchase since it's completed
+                        this.pendingPurchase = null;
+                        
+                        this.emit('response.text.complete', { text: responseText });
+                        this.emit('response.done', { 
+                            response: { 
+                                text: responseText,
+                                timestamp: new Date().toISOString(),
+                                purchaseCompleted: true,
+                                success: purchaseResult.success
+                            }
+                        });
+                        
+                    } catch (purchaseError) {
+                        console.error('❌ [FALLBACK] Auto-purchase failed:', purchaseError);
+                        const responseText = `Terjadi kesalahan saat membeli pulsa: ${purchaseError.message}`;
+                        this.pendingPurchase = null;
+                        
+                        this.emit('response.text.complete', { text: responseText });
+                        this.emit('response.done', { 
+                            response: { 
+                                text: responseText,
+                                timestamp: new Date().toISOString(),
+                                purchaseCompleted: false,
+                                success: false
+                            }
+                        });
                     }
-                });
+                } else {
+                    // Normal flow - ask for confirmation or provide feedback
+                    const responseText = result.message || 'Saya membutuhkan nomor telepon dan jumlah pulsa yang ingin dibeli. Contoh: "Beli pulsa 50 ribu untuk nomor 081234567890"';
+                    
+                    this.emit('response.text.complete', { text: responseText });
+                    this.emit('response.done', { 
+                        response: { 
+                            text: responseText,
+                            timestamp: new Date().toISOString(),
+                            needsConfirmation: result.needsConfirmation || false,
+                            confirmationData: result.data || null
+                        }
+                    });
+                }
             }
             
         } catch (error) {

@@ -53,6 +53,33 @@ class PulsaMCPServer {
     console.log('✅ [MCP SERVER] Pulsa MCP Server initialization complete!');
   }
 
+  // Generate a random transaction ID
+  generateTransactionId() {
+    const timestamp = Date.now().toString();
+    const random1 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const random2 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const prefix = 'TRX';
+    return `${prefix}-${timestamp}-${random1}${random2}`;
+  }
+
+  // Generate a random purchase reference ID
+  generatePurchaseId() {
+    const timestamp = Date.now().toString();
+    const random1 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const random2 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const prefix = 'PUR';
+    return `${prefix}-${timestamp}-${random1}${random2}`;
+  }
+
+  // Generate a random check/availability ID
+  generateCheckId() {
+    const timestamp = Date.now().toString();
+    const random1 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const random2 = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const prefix = 'CHK';
+    return `${prefix}-${timestamp}-${random1}${random2}`;
+  }
+
   setupHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
@@ -252,6 +279,7 @@ class PulsaMCPServer {
             amount: amount,
             provider: detectedProvider,
             price: availability.price,
+            checkId: this.generateCheckId(), // ID for tracking availability checks
             message: availability.message || "Pulsa availability checked successfully"
           }, null, 2)
         }]
@@ -299,12 +327,15 @@ class PulsaMCPServer {
 
       console.log(`✅ [MCP SERVER] Fazzagn API purchase response:`, transaction);
 
+      // Generate purchase ID if not provided by API
+      const transactionId = transaction.transactionId || this.generatePurchaseId();
+      
       const result = {
         content: [{
           type: "text",
           text: JSON.stringify({
             success: transaction.success,
-            transactionId: transaction.transactionId,
+            transactionId: transactionId,
             phoneNumber: phoneNumber,
             amount: amount,
             provider: provider,
@@ -393,6 +424,7 @@ class PulsaMCPServer {
             available: true,
             price: availability.price,
             readyToPurchase: true,
+            transactionId: this.generateTransactionId(),
             message: `Ready to purchase pulsa ${parsedCommand.amount} for ${parsedCommand.phoneNumber} (${validation.provider}). Price: ${availability.price}`
           }, null, 2)
         }]

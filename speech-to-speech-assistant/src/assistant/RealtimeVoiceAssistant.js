@@ -15,14 +15,14 @@ class RealtimeVoiceAssistant {
         this.sessionConfig = {
             model: process.env.REALTIME_MODEL || 'gpt-4o-realtime-preview',
             modalities: ['text', 'audio'],
-            voice: 'alloy',
+            voice: 'sage',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
-            instructions: 'You are a helpful AI assistant for pulsa/mobile credit purchases in Indonesia. Always respond in Bahasa Indonesia with a slow, clear pace. When users mention pulsa, kredit, top up, isi ulang, or want to buy mobile credit: 1) Use process_pulsa_request to understand their request, 2) Use validate_phone_number if needed, 3) Use check_pulsa_availability to verify availability, 4) Ask for confirmation before purchase. Always speak slowly and clearly with natural pauses.',
+            instructions: 'Kamu adalah asisten pulsa yang santai dan ramah. Selalu jawab singkat dalam Bahasa Indonesia sehari-hari, maksimal 1 kalimat. Kalau ada yang mau beli pulsa, langsung proses aja pakai tools yang ada. Bicara seperti teman, jangan formal. Contoh: "Oke siap!", "Bentar ya", "Udah selesai!", "Ada masalah nih". When users mention pulsa, kredit, top up, isi ulang, or want to buy mobile credit: 1) Use process_pulsa_request to understand their request, 2) Use validate_phone_number if needed, 3) Use check_pulsa_availability to verify availability, 4) Ask for confirmation before purchase.',
             input_audio_transcription: {
                 model: 'whisper-1'
             },
-            speed: 1,
+            speed: 1.1,
             turn_detection: {
                 type: 'server_vad',
                 threshold: 0.5,
@@ -318,8 +318,8 @@ class RealtimeVoiceAssistant {
                         this.sessionId
                     );
                     
-                    // If this is a pulsa request that needs confirmation, store it
-                    if (result.raw && result.raw.understood && result.raw.readyToPurchase) {
+                    // If this is a pulsa request that's ready to purchase, proceed automatically
+                    if (result.raw && result.raw.understood && result.raw.readyToPurchase) {                        
                         this.pendingPurchase = {
                             phoneNumber: result.raw.phoneNumber,
                             amount: result.raw.amount,
@@ -481,7 +481,7 @@ class RealtimeVoiceAssistant {
             type: 'response.create',
             response: {
                 modalities: ['text', 'audio'],
-                instructions: 'Please respond helpfully and conversationally. Speak slowly and clearly for better understanding.'
+                instructions: 'Please respond helpfully and conversationally. Speak simple and clearly for better understanding.'
             }
         };
 
