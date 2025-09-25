@@ -4,6 +4,7 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const RealtimeVoiceAssistant = require('./assistant/RealtimeVoiceAssistant');
 const FallbackVoiceAssistant = require('./assistant/FallbackVoiceAssistant');
+const PulsaService = require('./services/PulsaService');
 require('dotenv').config();
 
 class AIAssistantApp {
@@ -19,10 +20,12 @@ class AIAssistantApp {
         this.port = process.env.PORT || 3000;
         this.realtimeAssistant = new RealtimeVoiceAssistant();
         this.clientSessions = new Map(); // Track client sessions
+        this.pulsaService = new PulsaService(); // Add Pulsa Service
         
         this.setupMiddleware();
         this.setupRoutes();
         this.setupSocketHandlers();
+        this.initializePulsaService();
     }
 
     setupMiddleware() {
@@ -62,6 +65,17 @@ class AIAssistantApp {
                 res.status(500).json({ error: 'Failed to process message' });
             }
         });
+    }
+
+    async initializePulsaService() {
+        try {
+            await this.pulsaService.initialize();
+            this.pulsaService.startCleanupTimer();
+            console.log('✅ Pulsa Service initialized successfully');
+        } catch (error) {
+            console.error('❌ Failed to initialize Pulsa Service:', error);
+            console.log('⚠️ Pulsa functionality will not be available');
+        }
     }
 
     setupSocketHandlers() {
@@ -131,6 +145,47 @@ class AIAssistantApp {
             // Handle text messages
             socket.on('text-message', async (message) => {
                 const clientSession = this.clientSessions.get(socket.id);
+                
+                // Check if this is a pulsa-related request
+                if (this.pulsaService.isConnected && this.pulsaService.isPulsaIntent(message)) {
+                    try {
+                        console.log(`💳 Processing pulsa request from ${socket.id}: ${message}`);
+                        const result = await this.pulsaService.processSpeechForPulsa(message, socket.id);
+                        
+                        if (result.type === 'confirmation_needed') {
+                            socket.emit('pulsa-confirmation-needed', {
+                                message: result.message,
+                                data: result.data
+                            });
+                            // Also send as speech response for voice interaction
+                            socket.emit('text-response', {
+                                type: 'text-complete',
+                                text: result.message
+                            });
+                        } else if (result.type === 'error') {
+                            socket.emit('pulsa-error', {
+                                message: result.message,
+                                suggestions: result.suggestions
+                            });
+                            socket.emit('text-response', {
+                                type: 'text-complete',
+                                text: result.message
+                            });
+                        } else {
+                            socket.emit('pulsa-result', result);
+                            socket.emit('text-response', {
+                                type: 'text-complete',
+                                text: result.message
+                            });
+                        }
+                        return; // Don't process with regular assistant
+                    } catch (error) {
+                        console.error('Pulsa processing error:', error);
+                        socket.emit('error', 'Failed to process pulsa request: ' + error.message);
+                    }
+                }
+                
+                // Regular text message processing
                 if (clientSession && clientSession.assistant && clientSession.assistant.isConnected) {
                     if (clientSession.assistant.sendTextMessage) {
                         // Realtime API
@@ -182,6 +237,39 @@ class AIAssistantApp {
                 }
             });
 
+            // Handle pulsa confirmation responses
+            socket.on('pulsa-confirmation', async (data) => {
+                try {
+                    const { confirmed } = data;
+                    console.log(`💳 Pulsa confirmation from ${socket.id}: ${confirmed}`);
+                    
+                    const result = await this.pulsaService.handleUserConfirmation(socket.id, confirmed);
+                    
+                    if (result.type === 'success') {
+                        socket.emit('pulsa-success', result);
+                        socket.emit('text-response', {
+                            type: 'text-complete',
+                            text: result.message
+                        });
+                    } else if (result.type === 'cancelled') {
+                        socket.emit('pulsa-cancelled', result);
+                        socket.emit('text-response', {
+                            type: 'text-complete',
+                            text: result.message
+                        });
+                    } else if (result.type === 'error') {
+                        socket.emit('pulsa-error', result);
+                        socket.emit('text-response', {
+                            type: 'text-complete',
+                            text: result.message
+                        });
+                    }
+                } catch (error) {
+                    console.error('Pulsa confirmation error:', error);
+                    socket.emit('error', 'Failed to process pulsa confirmation: ' + error.message);
+                }
+            });
+
             // Handle interruption
             socket.on('interrupt', () => {
                 const clientSession = this.clientSessions.get(socket.id);
@@ -197,6 +285,11 @@ class AIAssistantApp {
                 if (clientSession && clientSession.assistant) {
                     clientSession.assistant.disconnect();
                     this.clientSessions.delete(socket.id);
+                }
+                // Clean up pulsa session if exists
+                if (this.pulsaService.activeSessions && this.pulsaService.activeSessions.has(socket.id)) {
+                    console.log(`🧹 Cleaning up pulsa session for ${socket.id}`);
+                    this.pulsaService.activeSessions.delete(socket.id);
                 }
             });
         });
