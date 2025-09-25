@@ -339,10 +339,8 @@ class RealtimeVoiceAssistant {
                     break;
                 case 'process_pulsa_request':
                     result = await this.pulsaService.processPulsaCommand(
-                        functionArgs.phoneNumber,
-                        functionArgs.amount,
-                        functionArgs.userConfirmation,
-                        functionArgs.provider
+                        functionArgs.speechText,
+                        this.sessionId
                     );
 
                     // If this is a pulsa request that's ready to purchase, proceed automatically

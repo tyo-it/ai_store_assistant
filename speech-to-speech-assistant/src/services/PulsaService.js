@@ -36,14 +36,14 @@ class PulsaService {
         }
     }
 
-    async processPulsaCommand(phoneNumber, amount, userConfirmation, provider) {
+    async processPulsaCommand(speechText, sessionId) {
         if (!this.isConnected) {
             throw new Error('Pulsa service is not connected');
         }
 
         try {
             // Use the MCP server to process the speech command
-            const result = await this.mcpClient.processSpeechCommand(phoneNumber, amount, userConfirmation, provider);
+            const result = await this.mcpClient.processSpeechCommand(speechText, sessionId);
             return this.formatResponse(result);
         } catch (error) {
             console.error('Error processing pulsa command:', error);
