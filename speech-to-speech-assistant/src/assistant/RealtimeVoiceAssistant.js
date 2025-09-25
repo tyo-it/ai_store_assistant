@@ -1,19 +1,23 @@
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
+const PulsaService = require('../services/PulsaService');
 
 class RealtimeVoiceAssistant {
     constructor() {
         this.apiKey = process.env.OPENAI_API_KEY;
         this.ws = null;
         this.isConnected = false;
+        this.pulsaService = new PulsaService();
+        this.sessionId = this.generateSessionId();
+        this.pendingPurchase = null;
         this.sessionConfig = {
             model: process.env.REALTIME_MODEL || 'gpt-4o-realtime-preview',
             modalities: ['text', 'audio'],
             voice: 'alloy',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
-            instructions: 'You are a helpful AI assistant. Please respond in Bahasa Indonesia and speak very slowly and clearly, with natural pauses between sentences and words for better understanding. Take your time with each word, pronounce everything distinctly, and avoid rushing. Use a calm, measured pace throughout your responses. Always respond in Indonesian language.',
+            instructions: 'You are a helpful AI assistant that can help with general questions and pulsa/mobile credit purchases. Please respond in Bahasa Indonesia and speak very slowly and clearly, with natural pauses between sentences and words for better understanding. Take your time with each word, pronounce everything distinctly, and avoid rushing. Use a calm, measured pace throughout your responses. Always respond in Indonesian language. For pulsa purchases, ask for phone number and amount, then ask for confirmation before proceeding.',
             input_audio_transcription: {
                 model: 'whisper-1'
             },
@@ -30,6 +34,22 @@ class RealtimeVoiceAssistant {
             max_response_output_tokens: 4096
         };
         this.eventHandlers = new Map();
+        
+        // Initialize pulsa service
+        this.initializePulsaService();
+    }
+
+    generateSessionId() {
+        return 'realtime_session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    async initializePulsaService() {
+        try {
+            await this.pulsaService.initialize();
+            console.log('Pulsa service initialized for Realtime Assistant');
+        } catch (error) {
+            console.error('Failed to initialize Pulsa service for Realtime Assistant:', error);
+        }
     }
 
     async connect() {
@@ -77,10 +97,13 @@ class RealtimeVoiceAssistant {
         });
     }
 
-    disconnect() {
+    async disconnect() {
         if (this.ws && this.isConnected) {
             this.ws.close();
             this.isConnected = false;
+        }
+        if (this.pulsaService) {
+            await this.pulsaService.disconnect();
         }
     }
 
@@ -406,6 +429,57 @@ class RealtimeVoiceAssistant {
             model: this.sessionConfig.model,
             vadEnabled: !!this.sessionConfig.turn_detection
         };
+    }
+
+    async confirmPulsaPurchase(confirmed) {
+        try {
+            if (!this.pendingPurchase) {
+                return {
+                    type: 'text',
+                    text: 'Tidak ada pembelian pulsa yang menunggu konfirmasi.',
+                    timestamp: new Date().toISOString()
+                };
+            }
+            
+            const { phoneNumber, amount } = this.pendingPurchase;
+            
+            if (confirmed) {
+                console.log(`Confirming pulsa purchase: ${phoneNumber}, ${amount}`);
+                const result = await this.pulsaService.purchasePulsa(phoneNumber, amount, true);
+                
+                this.pendingPurchase = null;
+                
+                if (result.success) {
+                    return {
+                        type: 'text',
+                        text: `Pembelian pulsa berhasil! ${result.message}`,
+                        timestamp: new Date().toISOString()
+                    };
+                } else {
+                    return {
+                        type: 'text',
+                        text: `Pembelian pulsa gagal. ${result.message}`,
+                        timestamp: new Date().toISOString()
+                    };
+                }
+            } else {
+                this.pendingPurchase = null;
+                return {
+                    type: 'text',
+                    text: 'Pembelian pulsa dibatalkan.',
+                    timestamp: new Date().toISOString()
+                };
+            }
+            
+        } catch (error) {
+            console.error('Error confirming pulsa purchase:', error);
+            this.pendingPurchase = null;
+            return {
+                type: 'text',
+                text: 'Terjadi kesalahan saat mengkonfirmasi pembelian pulsa.',
+                timestamp: new Date().toISOString()
+            };
+        }
     }
 }
 

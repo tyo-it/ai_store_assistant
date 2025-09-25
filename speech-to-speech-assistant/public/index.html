@@ -258,6 +258,59 @@
         cursor: not-allowed;
       }
 
+      .confirmation-buttons {
+        background: #fff3cd;
+        border: 2px solid #ffeaa7;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        text-align: center;
+      }
+
+      .confirmation-message {
+        color: #856404;
+        font-weight: 500;
+        margin-bottom: 1rem;
+        font-size: 1rem;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+      }
+
+      .confirm-btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 120px;
+      }
+
+      .confirm-btn.yes {
+        background: #28a745;
+        color: white;
+      }
+
+      .confirm-btn.yes:hover {
+        background: #218838;
+        transform: translateY(-2px);
+      }
+
+      .confirm-btn.no {
+        background: #dc3545;
+        color: white;
+      }
+
+      .confirm-btn.no:hover {
+        background: #c82333;
+        transform: translateY(-2px);
+      }
+
       .status {
         text-align: center;
         padding: 1rem;
@@ -355,6 +408,19 @@
           disabled
         />
         <button id="sendButton" disabled>Send</button>
+      </div>
+
+      <!-- Pulsa Confirmation Buttons -->
+      <div
+        class="confirmation-buttons"
+        id="confirmationButtons"
+        style="display: none"
+      >
+        <p class="confirmation-message" id="confirmationMessage"></p>
+        <div class="button-group">
+          <button id="confirmYes" class="confirm-btn yes">Ya, Lanjutkan</button>
+          <button id="confirmNo" class="confirm-btn no">Batal</button>
+        </div>
       </div>
 
       <div class="status" id="status">Connecting to OpenAI Realtime API...</div>
@@ -459,6 +525,16 @@
           this.textInput.addEventListener("keypress", (e) => {
             if (e.key === "Enter") this.sendTextMessage();
           });
+
+          // Confirmation buttons
+          document
+            .getElementById("confirmYes")
+            .addEventListener("click", () => {
+              this.handleConfirmation(true);
+            });
+          document.getElementById("confirmNo").addEventListener("click", () => {
+            this.handleConfirmation(false);
+          });
         }
 
         setupSocketHandlers() {
@@ -519,6 +595,17 @@
               this.appendToLastMessage("assistant", data.text);
             } else if (data.type === "text-complete" && data.text) {
               this.displayMessage("assistant", data.text);
+
+              // Check if this response needs confirmation (for pulsa purchases)
+              if (
+                data.needsConfirmation ||
+                (data.response && data.response.needsConfirmation)
+              ) {
+                this.showConfirmationButtons(
+                  data.text,
+                  data.confirmationData || data.response.confirmationData
+                );
+              }
 
               // In fallback mode, the server now handles TTS through audio-response events
               // So we don't need to call speakText here anymore - it will be handled
@@ -1053,6 +1140,47 @@
             console.warn("Speech synthesis not supported in this browser");
             this.updateStatus("Ready for next input.");
           }
+        }
+
+        showConfirmationButtons(message, confirmationData) {
+          const confirmationButtons = document.getElementById(
+            "confirmationButtons"
+          );
+          const confirmationMessage = document.getElementById(
+            "confirmationMessage"
+          );
+
+          confirmationMessage.textContent = message;
+          confirmationButtons.style.display = "block";
+
+          // Store confirmation data for later use
+          this.pendingConfirmationData = confirmationData;
+        }
+
+        hideConfirmationButtons() {
+          const confirmationButtons = document.getElementById(
+            "confirmationButtons"
+          );
+          confirmationButtons.style.display = "none";
+          this.pendingConfirmationData = null;
+        }
+
+        handleConfirmation(confirmed) {
+          console.log("Pulsa confirmation:", confirmed ? "YES" : "NO");
+
+          // Send confirmation to server
+          this.socket.emit("pulsa-confirmation", {
+            confirmed: confirmed,
+            data: this.pendingConfirmationData,
+          });
+
+          // Hide confirmation buttons
+          this.hideConfirmationButtons();
+
+          // Update status
+          this.updateStatus(
+            confirmed ? "Processing purchase..." : "Purchase cancelled"
+          );
         }
 
         loadSpeechSynthesisVoices() {

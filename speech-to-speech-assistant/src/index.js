@@ -182,6 +182,38 @@ class AIAssistantApp {
                 }
             });
 
+            // Handle pulsa confirmation
+            socket.on('pulsa-confirmation', async (data) => {
+                const clientSession = this.clientSessions.get(socket.id);
+                if (clientSession && clientSession.assistant) {
+                    try {
+                        const response = await clientSession.assistant.confirmPulsaPurchase(data.confirmed);
+                        if (response) {
+                            socket.emit('text-response', {
+                                type: 'text-complete',
+                                text: response.text
+                            });
+                            
+                            // Also generate audio response
+                            if (clientSession.assistant.textToSpeech) {
+                                const audioResponse = await clientSession.assistant.textToSpeech.synthesize(response.text, {
+                                    speed: parseFloat(process.env.SPEECH_RATE) || 1,
+                                    pitch: parseFloat(process.env.SPEECH_PITCH) || 0
+                                });
+                                
+                                socket.emit('audio-response', {
+                                    type: 'audio-complete',
+                                    audio: audioResponse
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error handling pulsa confirmation:', error);
+                        socket.emit('error', 'Failed to process pulsa confirmation');
+                    }
+                }
+            });
+
             // Handle interruption
             socket.on('interrupt', () => {
                 const clientSession = this.clientSessions.get(socket.id);
@@ -191,11 +223,13 @@ class AIAssistantApp {
             });
 
             // Handle disconnect
-            socket.on('disconnect', () => {
+            socket.on('disconnect', async () => {
                 console.log('Client disconnected:', socket.id);
                 const clientSession = this.clientSessions.get(socket.id);
                 if (clientSession && clientSession.assistant) {
-                    clientSession.assistant.disconnect();
+                    if (clientSession.assistant.disconnect) {
+                        await clientSession.assistant.disconnect();
+                    }
                     this.clientSessions.delete(socket.id);
                 }
             });

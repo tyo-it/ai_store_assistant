@@ -1,0 +1,9 @@
+{
+  "testEnvironment": "node",
+  "globals": {
+    "__dirname": true,
+    "__filename": true
+  },
+  "transform": {},
+  "testMatch": ["**/test/**/*.test.js"]
+}
