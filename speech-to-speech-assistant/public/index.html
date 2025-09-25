@@ -458,6 +458,45 @@
       border-radius: 12px;
     }
 
+    /* Transaction information styling */
+    .transaction-info {
+      margin: 1rem 0;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+      text-align: left;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      padding: 0.25rem 0;
+    }
+
+    .info-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: #495057;
+      font-size: 0.9rem;
+      min-width: 100px;
+    }
+
+    .info-value {
+      color: #2a5298;
+      font-weight: 500;
+      font-size: 0.9rem;
+      word-break: break-all;
+      text-align: right;
+      flex: 1;
+      margin-left: 1rem;
+    }
+
     .modal-actions {
       display: flex;
       justify-content: center;
@@ -545,6 +584,23 @@
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stopDialogTitle">
         <p>Pindai QR untuk untuk melakukan pembayaran.</p>
         <canvas id="qr-code"></canvas>
+
+        <!-- Transaction Information -->
+        <div class="transaction-info">
+          <div class="info-row">
+            <span class="info-label">ID Transaksi:</span>
+            <span class="info-value" id="transaction-id">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Nomor HP:</span>
+            <span class="info-value" id="phone-number">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Jumlah:</span>
+            <span class="info-value" id="amount">-</span>
+          </div>
+        </div>
+
         <div class="modal-actions">
           <button id="stopCancel" class="confirm-btn yes">Tutup</button>
         </div>
@@ -576,6 +632,10 @@
           this.audioQueue = [];
           this.isPlayingQueue = false;
           this.nextStartTime = 0;
+
+          // Transaction polling management
+          this.pollingInterval = null;
+          this.currentUniqueId = null;
 
           this.initializeElements();
           this.setupEventListeners();
@@ -658,12 +718,14 @@
           }
           if (stopCancel) {
             stopCancel.addEventListener("click", () => {
+              this.stopPolling(); // Stop transaction polling
               if (stopOverlay) stopOverlay.style.display = "none";
             });
           }
           if (stopOverlay) {
             stopOverlay.addEventListener("click", (e) => {
               if (e.target === stopOverlay) {
+                this.stopPolling(); // Stop transaction polling
                 stopOverlay.style.display = "none";
               }
             });
@@ -773,6 +835,31 @@
             const overlay = document.getElementById("stopDialog");
             if (overlay) overlay.style.display = "flex";
 
+            // Update transaction information
+            const transactionIdElement = document.getElementById("transaction-id");
+            const phoneNumberElement = document.getElementById("phone-number");
+            const amountElement = document.getElementById("amount");
+
+            if (transactionIdElement) {
+              transactionIdElement.textContent = data.uniqueId || '-';
+            }
+            if (phoneNumberElement) {
+              phoneNumberElement.textContent = data.phoneNumber || '-';
+            }
+            if (amountElement) {
+              // Format amount with currency if available
+              const amount = data.amount;
+              if (amount) {
+                // Format as currency (assuming IDR)
+                const formattedAmount = typeof amount === 'number' ?
+                  `Rp ${amount.toLocaleString('id-ID')}` :
+                  `Rp ${amount}`;
+                amountElement.textContent = formattedAmount;
+              } else {
+                amountElement.textContent = '-';
+              }
+            }
+
             var url = 'https://chat.clydev.com/payment/' + data.uniqueId;
             const canvas = document.getElementById("qr-code");
             try {
@@ -793,6 +880,11 @@
               );
             } catch (e) {
               console.error("Failed to render QR to canvas:", e);
+            }
+
+            // Start polling for transaction status
+            if (data.uniqueId) {
+              this.startPolling(data.uniqueId);
             }
           })
 
@@ -1432,6 +1524,78 @@
 
           // Initialize speech synthesis voices
           this.loadSpeechSynthesisVoices();
+        }
+
+        async checkTransactionStatus(unique_id) {
+          try {
+            console.log(`🔍 Checking transaction status for: ${unique_id}`);
+
+            const response = await fetch(`/api/v1/transactions/recharges/${unique_id}/status`);
+
+            if (!response.ok) {
+              console.error(`Status check failed: ${response.status} ${response.statusText}`);
+              return null;
+            }
+
+            const result = await response.json();
+            console.log('📊 Transaction status result:', result);
+
+            if (result.data && result.data.status) {
+              return result.data.status;
+            }
+
+            return null;
+          } catch (error) {
+            console.error('Error checking transaction status:', error);
+            return null;
+          }
+        }
+
+        startPolling(unique_id) {
+          console.log(`🔄 Starting polling for unique_id: ${unique_id}`);
+
+          // Clear any existing polling
+          this.stopPolling();
+
+          // Store the unique_id
+          this.currentUniqueId = unique_id;
+
+          // Start polling immediately and then every 5 seconds
+          const pollOnce = async () => {
+            const status = await this.checkTransactionStatus(unique_id);
+
+            if (status === 'completed') {
+              console.log('✅ Transaction completed, stopping polling and closing dialog');
+              this.stopPolling();
+
+              // Close the dialog
+              const overlay = document.getElementById("stopDialog");
+              if (overlay) overlay.style.display = "none";
+
+              // Optional: Show success message
+              this.updateStatus("Payment completed successfully!");
+
+            } else if (status) {
+              console.log(`📊 Transaction status: ${status}, continuing to poll`);
+            }
+
+            // Schedule next poll if still polling
+            if (this.pollingInterval !== null && this.currentUniqueId === unique_id) {
+              this.pollingInterval = setTimeout(pollOnce, 5000);
+            }
+          };
+
+          // Start first poll
+          pollOnce();
+        }
+
+        stopPolling() {
+          if (this.pollingInterval) {
+            console.log('🛑 Stopping transaction status polling');
+            clearTimeout(this.pollingInterval);
+            this.pollingInterval = null;
+          }
+          this.currentUniqueId = null;
         }
       }
 
