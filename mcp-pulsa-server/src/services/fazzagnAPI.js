@@ -4,11 +4,11 @@ export class FazzagnAPI {
   constructor(config) {
     this.baseURL = config.baseURL || 'http://localhost:3000';
     this.userId = config.userId || 1;
-    
+
     console.log('🔧 [FAZZAGN API] Initializing FazzagnAPI client...');
     console.log('🔧 [FAZZAGN API] Base URL:', this.baseURL);
     console.log('🔧 [FAZZAGN API] User ID:', this.userId);
-    
+
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
@@ -16,7 +16,7 @@ export class FazzagnAPI {
         'Content-Type': 'application/json'
       }
     });
-    
+
     console.log('✅ [FAZZAGN API] FazzagnAPI client initialized successfully');
   }
 
@@ -30,18 +30,18 @@ export class FazzagnAPI {
           customer_number: phoneNumber
         }
       };
-      
+
       console.log('🔍 [FAZZAGN API] Calling Inquire API...');
       console.log('📤 [FAZZAGN API] Request URL:', `${this.baseURL}/api/v1/transactions/recharges/inquire`);
       console.log('📤 [FAZZAGN API] Request Payload:', JSON.stringify(inquirePayload, null, 2));
-      
+
       const inquireResponse = await this.client.post('/api/v1/transactions/recharges/inquire', inquirePayload);
-      
+
       console.log('📥 [FAZZAGN API] Inquire Response Status:', inquireResponse.status);
       console.log('📥 [FAZZAGN API] Inquire Response Data:', JSON.stringify(inquireResponse.data, null, 2));
 
       const referenceNumber = inquireResponse.data.data.reference_number;
-      
+
       if (!referenceNumber) {
         console.error('❌ [FAZZAGN API] No reference number received from inquire API');
         throw new Error('Failed to get reference number from inquire API');
@@ -56,7 +56,7 @@ export class FazzagnAPI {
         referenceNumber: referenceNumber,
         productCode: `${provider?.toUpperCase() || 'UNKNOWN'}_${amount}`
       };
-      
+
       console.log('📊 [FAZZAGN API] Returning availability result:', JSON.stringify(result, null, 2));
       return result;
     } catch (error) {
@@ -66,7 +66,7 @@ export class FazzagnAPI {
       console.error('   - Response Data:', JSON.stringify(error.response?.data, null, 2));
       console.error('   - Request URL:', error.config?.url);
       console.error('   - Request Method:', error.config?.method);
-      
+
       // Handle different error scenarios
       if (error.response?.status === 401) {
         console.error('🔐 [FAZZAGN API] Authentication failed - check credentials');
@@ -78,7 +78,7 @@ export class FazzagnAPI {
         console.error('⏱️ [FAZZAGN API] Rate limit exceeded');
         throw new Error('Rate limit exceeded. Please try again later.');
       }
-      
+
       // Fallback for demo purposes - simulate availability check
       console.log('🎭 [FAZZAGN API] Falling back to simulation mode');
       return this._simulatePulsaCheck({ phoneNumber, amount, provider });
@@ -89,7 +89,7 @@ export class FazzagnAPI {
     try {
       console.log('💳 [FAZZAGN API] Starting pulsa purchase process...');
       console.log('💳 [FAZZAGN API] Purchase params:', { phoneNumber, amount, provider, referenceNumber });
-      
+
       // If no reference number provided, get one first
       if (!referenceNumber) {
         console.log('🔍 [FAZZAGN API] No reference number provided, getting one first...');
@@ -108,65 +108,55 @@ export class FazzagnAPI {
           user_id: this.userId
         }
       };
-      
+
       console.log('🛒 [FAZZAGN API] Calling Order API...');
       console.log('📤 [FAZZAGN API] Order Request URL:', `${this.baseURL}/api/v1/transactions/recharge/order`);
       console.log('📤 [FAZZAGN API] Order Request Payload:', JSON.stringify(orderPayload, null, 2));
-      
+
       const orderResponse = await this.client.post('/api/v1/transactions/recharges/order', orderPayload);
-      
+
       console.log('📥 [FAZZAGN API] Order Response Status:', orderResponse.status);
       console.log('📥 [FAZZAGN API] Order Response Data:', JSON.stringify(orderResponse.data, null, 2));
 
-      const uniqueId = orderResponse.data.unique_id;
-      
-      if (!uniqueId) {
-        console.error('❌ [FAZZAGN API] No unique_id received from order API');
-        throw new Error('Failed to get unique_id from order API');
-      }
+      const response = orderResponse.data.data;
 
-      console.log('✅ [FAZZAGN API] Order API call successful, unique_id:', uniqueId);
+      console.log('✅ [FAZZAGN API] Order API call successful');
 
-      // Step 2: Pay - Process payment using unique_id
-      const payPayload = {
-        payment: {
-          unique_id: uniqueId
-        }
-      };
-      
-      console.log('💰 [FAZZAGN API] Calling Pay API...');
-      console.log('📤 [FAZZAGN API] Pay Request URL:', `${this.baseURL}/api/v1/transactions/recharges/pay`);
-      console.log('📤 [FAZZAGN API] Pay Request Payload:', JSON.stringify(payPayload, null, 2));
-      
-      const payResponse = await this.client.post('/api/v1/transactions/recharges/pay', payPayload);
-      
-      console.log('📥 [FAZZAGN API] Pay Response Status:', payResponse.status);
-      console.log('📥 [FAZZAGN API] Pay Response Data:', JSON.stringify(payResponse.data, null, 2));
+      // // Step 2: Pay - Process payment using unique_id
+      // const payPayload = {
+      //   payment: {
+      //     unique_id: uniqueId
+      //   }
+      // };
+
+      // console.log('💰 [FAZZAGN API] Calling Pay API...');
+      // console.log('📤 [FAZZAGN API] Pay Request URL:', `${this.baseURL}/api/v1/transactions/recharges/pay`);
+      // console.log('📤 [FAZZAGN API] Pay Request Payload:', JSON.stringify(payPayload, null, 2));
+
+      // const payResponse = await this.client.post('/api/v1/transactions/recharges/pay', payPayload);
+
+      // console.log('📥 [FAZZAGN API] Pay Response Status:', payResponse.status);
+      // console.log('📥 [FAZZAGN API] Pay Response Data:', JSON.stringify(payResponse.data, null, 2));
 
       // Step 3: Check status to confirm completion
-      const statusUrl = `/api/v1/transactions/recharges/${uniqueId}/status`;
-      console.log('📊 [FAZZAGN API] Calling Status API...');
-      console.log('📤 [FAZZAGN API] Status Request URL:', `${this.baseURL}${statusUrl}`);
-      
-      const statusResponse = await this.client.get(statusUrl);
-      
-      console.log('📥 [FAZZAGN API] Status Response Status:', statusResponse.status);
-      console.log('📥 [FAZZAGN API] Status Response Data:', JSON.stringify(statusResponse.data, null, 2));
+      // const statusUrl = `/api/v1/transactions/recharges/${uniqueId}/status`;
+      // console.log('📊 [FAZZAGN API] Calling Status API...');
+      // console.log('📤 [FAZZAGN API] Status Request URL:', `${this.baseURL}${statusUrl}`);
+
+      // const statusResponse = await this.client.get(statusUrl);
+
+      // console.log('📥 [FAZZAGN API] Status Response Status:', statusResponse.status);
+      // console.log('📥 [FAZZAGN API] Status Response Data:', JSON.stringify(statusResponse.data, null, 2));
 
       const result = {
-        success: payResponse.data.success === true || statusResponse.data.status === 'completed',
-        transactionId: uniqueId,
-        status: statusResponse.data.status || payResponse.data.status,
-        message: statusResponse.data.message || payResponse.data.message || `Pulsa ${amount} berhasil dikirim ke ${phoneNumber}`,
-        balance: statusResponse.data.balance || payResponse.data.balance,
-        serialNumber: statusResponse.data.serial_number || statusResponse.data.sn,
-        referenceNumber: referenceNumber,
-        uniqueId: uniqueId
+        phoneNumber: response.customer_number,
+        amount: response.amount,
+        uniqueId: response.unique_id
       };
-      
+
       console.log('✅ [FAZZAGN API] Purchase process completed successfully!');
       console.log('📊 [FAZZAGN API] Final purchase result:', JSON.stringify(result, null, 2));
-      
+
       return result;
     } catch (error) {
       console.error('❌ [FAZZAGN API] Purchase API Error Details:');
@@ -176,7 +166,7 @@ export class FazzagnAPI {
       console.error('   - Request URL:', error.config?.url);
       console.error('   - Request Method:', error.config?.method);
       console.error('   - Request Data:', error.config?.data);
-      
+
       if (error.response?.status === 402) {
         console.error('💰 [FAZZAGN API] Insufficient balance in Fazzagn account');
         throw new Error('Insufficient balance in your Fazzagn account.');
@@ -187,7 +177,7 @@ export class FazzagnAPI {
         console.error('📝 [FAZZAGN API] Invalid request parameters');
         throw new Error('Invalid request parameters. Please check phone number and amount.');
       }
-      
+
       // Fallback for demo purposes - simulate transaction
       console.log('🎭 [FAZZAGN API] Falling back to simulation mode for purchase');
       return this._simulateTransaction({ phoneNumber, amount, provider });
@@ -208,7 +198,7 @@ export class FazzagnAPI {
       console.error('   - Error Message:', error.message);
       console.error('   - Response Status:', error.response?.status);
       console.error('   - Response Data:', JSON.stringify(error.response?.data, null, 2));
-      
+
       // Fallback with common Indonesian pulsa denominations
       console.log('🎭 [FAZZAGN API] Falling back to default prices due to error');
       return this._getDefaultPrices(provider);
@@ -221,12 +211,12 @@ export class FazzagnAPI {
       console.log('📊 [FAZZAGN API] Getting transaction status...');
       console.log('📤 [FAZZAGN API] Status Request URL:', `${this.baseURL}${statusUrl}`);
       console.log('📤 [FAZZAGN API] Unique ID:', uniqueId);
-      
+
       const response = await this.client.get(statusUrl);
-      
+
       console.log('📥 [FAZZAGN API] Status Response Status:', response.status);
       console.log('📥 [FAZZAGN API] Status Response Data:', JSON.stringify(response.data, null, 2));
-      
+
       const result = {
         uniqueId: uniqueId,
         status: response.data.status,
@@ -236,10 +226,10 @@ export class FazzagnAPI {
         createdAt: response.data.created_at,
         completedAt: response.data.completed_at
       };
-      
+
       console.log('✅ [FAZZAGN API] Transaction status retrieved successfully:', JSON.stringify(result, null, 2));
       return result;
-      
+
     } catch (error) {
       console.error('❌ [FAZZAGN API] Status Check Error Details:');
       console.error('   - Error Message:', error.message);
@@ -269,11 +259,11 @@ export class FazzagnAPI {
   _simulatePulsaCheck({ phoneNumber, amount, provider }) {
     console.log('🎭 [FAZZAGN API] SIMULATION MODE: Checking pulsa availability');
     console.log('🎭 [FAZZAGN API] Simulation params:', { phoneNumber, amount, provider });
-    
+
     // Simulate realistic availability based on common denominations
     const commonAmounts = [5000, 10000, 15000, 20000, 25000, 50000, 100000];
     const available = commonAmounts.includes(amount);
-    
+
     const result = {
       available,
       price: available ? amount + Math.floor(amount * 0.05) : null, // Add 5% admin fee
@@ -282,7 +272,7 @@ export class FazzagnAPI {
       referenceNumber: available ? `REF_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : null,
       availableAmounts: commonAmounts
     };
-    
+
     console.log('🎭 [FAZZAGN API] Simulation result:', JSON.stringify(result, null, 2));
     return result;
   }
@@ -290,12 +280,12 @@ export class FazzagnAPI {
   _simulateTransaction({ phoneNumber, amount, provider }) {
     console.log('🎭 [FAZZAGN API] SIMULATION MODE: Processing pulsa purchase');
     console.log('🎭 [FAZZAGN API] Simulation params:', { phoneNumber, amount, provider });
-    
+
     const uniqueId = `TRX_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const referenceNumber = `REF_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    
+
     console.log('🎭 [FAZZAGN API] Generated simulation IDs:', { uniqueId, referenceNumber });
-    
+
     const result = {
       success: true,
       transactionId: uniqueId,
@@ -306,7 +296,7 @@ export class FazzagnAPI {
       serialNumber: Math.random().toString().substring(2, 12),
       referenceNumber: referenceNumber
     };
-    
+
     console.log('🎭 [FAZZAGN API] Simulation transaction result:', JSON.stringify(result, null, 2));
     return result;
   }

@@ -7,7 +7,7 @@ class MCPClient extends EventEmitter {
         this.serverUrl = serverUrl;
         this.isConnected = false;
         this.tools = [];
-        
+
         // Create axios client with timeout
         this.client = axios.create({
             baseURL: this.serverUrl,
@@ -21,18 +21,18 @@ class MCPClient extends EventEmitter {
     async connect() {
         try {
             console.log('🔌 [MCP CLIENT] Connecting to MCP server at:', this.serverUrl);
-            
+
             // Test connection with health check
             const healthResponse = await this.client.get('/health');
             console.log('✅ [MCP CLIENT] Health check response:', healthResponse.data);
-            
+
             // Get available tools
             await this.listTools();
-            
+
             this.isConnected = true;
             console.log('✅ [MCP CLIENT] Connected to MCP server successfully');
             this.emit('connected');
-            
+
         } catch (error) {
             console.error('❌ [MCP CLIENT] Failed to connect to MCP server:', error.message);
             if (error.code === 'ECONNREFUSED') {
@@ -65,12 +65,12 @@ class MCPClient extends EventEmitter {
         try {
             console.log(`🔧 [MCP CLIENT] Calling tool: ${name}`);
             console.log(`📤 [MCP CLIENT] Tool arguments:`, JSON.stringify(arguments_, null, 2));
-            
+
             const response = await this.client.post(`/tools/${name}`, arguments_ || {});
-            
+
             console.log(`📥 [MCP CLIENT] Tool response:`, JSON.stringify(response.data, null, 2));
             return response.data;
-            
+
         } catch (error) {
             console.error(`❌ [MCP CLIENT] Error calling tool ${name}:`, error.message);
             if (error.response) {
@@ -96,12 +96,13 @@ class MCPClient extends EventEmitter {
         });
     }
 
-    async purchasePulsa(phoneNumber, amount, userConfirmation = false, provider = null) {
+    async purchasePulsa(phoneNumber, amount, userConfirmation = false, provider = null, referenceNumber = null) {
         return await this.callTool('purchase_pulsa', {
             phoneNumber: phoneNumber,
             amount: amount,
             provider: provider,
-            user_confirmation: userConfirmation
+            user_confirmation: userConfirmation,
+            referenceNumber: referenceNumber
         });
     }
 
