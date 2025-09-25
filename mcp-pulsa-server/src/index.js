@@ -328,19 +328,14 @@ class PulsaMCPServer {
 
       console.log(`✅ [MCP SERVER] Fazzagn API purchase response:`, transaction);
 
-      // Generate purchase ID if not provided by API
-      const transactionId = transaction.transactionId || this.generatePurchaseId();
-
       const result = {
         content: [{
           type: "text",
           text: JSON.stringify({
-            success: transaction.success,
-            transactionId: transactionId,
             phoneNumber: phoneNumber,
             amount: amount,
             provider: provider,
-            status: transaction.status,
+            uniqueId: transaction.uniqueId,
             message: transaction.message || "Pulsa purchase completed successfully"
           }, null, 2)
         }]
