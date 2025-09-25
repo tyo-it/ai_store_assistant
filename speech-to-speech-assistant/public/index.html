@@ -356,8 +356,8 @@
   <body>
     <div class="container">
       <div class="header">
-        <h1>🎤 OpenAI Realtime Voice Assistant</h1>
-        <p>Experience natural voice conversations with AI</p>
+        <h1>FAZZRIE</h1>
+        <p>FAZZ Resourceful Intelligent Entity</p>
         <div class="status-badge connecting" id="connectionStatus">
           Connecting...
         </div>
@@ -365,38 +365,21 @@
 
       <div class="chat-container" id="chatContainer">
         <div class="message assistant">
-          <strong>AI Assistant:</strong>
+          <strong>FAZZRIE:</strong>
           <span class="message-content"
-            >Hello! I'm your OpenAI Realtime voice assistant. I can understand
-            and respond to your voice in real-time. Hold the microphone button
-            and speak to me!</span
-          >
+            >Halo! Ada yang bisa saya bantu
+          </span>
         </div>
       </div>
 
       <div class="controls">
         <div class="voice-controls">
           <button class="voice-button" id="voiceButton" disabled>
-            🎤 Hold to Talk
+            🗣️ Bicara
           </button>
           <button class="interrupt-button" id="interruptButton" disabled>
-            ⏹️ Stop
+            Berhenti
           </button>
-        </div>
-
-        <div class="settings">
-          <select class="voice-select" id="voiceSelect" disabled>
-            <option value="alloy">Alloy</option>
-            <option value="ash">Ash</option>
-            <option value="ballad">Ballad</option>
-            <option value="coral">Coral</option>
-            <option value="echo">Echo</option>
-            <option value="sage">Sage</option>
-            <option value="shimmer">Shimmer</option>
-            <option value="verse">Verse</option>
-            <option value="marin">Marin</option>
-            <option value="cedar">Cedar</option>
-          </select>
         </div>
       </div>
 
@@ -404,10 +387,26 @@
         <input
           type="text"
           id="textInput"
-          placeholder="Or type your message here..."
+          placeholder="Tulis pesan disini..."
           disabled
         />
-        <button id="sendButton" disabled>Send</button>
+        <button id="sendButton" disabled>Kirim</button>
+      </div>
+
+      <br/>
+      <div class="settings">
+        <select class="voice-select" id="voiceSelect" disabled>
+          <option value="alloy">Alloy</option>
+          <option value="ash">Ash</option>
+          <option value="ballad">Ballad</option>
+          <option value="coral">Coral</option>
+          <option value="echo">Echo</option>
+          <option value="sage">Sage</option>
+          <option value="shimmer">Shimmer</option>
+          <option value="verse">Verse</option>
+          <option value="marin">Marin</option>
+          <option value="cedar">Cedar</option>
+        </select>
       </div>
 
       <!-- Pulsa Confirmation Buttons -->
@@ -424,25 +423,6 @@
       </div>
 
       <div class="status" id="status">Connecting to OpenAI Realtime API...</div>
-
-      <div class="features">
-        <div class="feature">
-          <div class="feature-icon">🎙️</div>
-          <h3>Real-time Voice</h3>
-          <p>Natural conversation with minimal latency</p>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">🧠</div>
-          <h3>Smart AI</h3>
-          <p>Powered by OpenAI's latest models</p>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">🔊</div>
-          <h3>Multiple Voices</h3>
-          <p>Choose from 10 different AI voices</p>
-        </div>
-      </div>
-    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -565,7 +545,7 @@
               } else {
                 this.updateConnectionStatus(
                   "connected",
-                  "Connected to OpenAI Realtime"
+                  "Connected"
                 );
                 this.updateStatus(
                   `Ready! Realtime API (${this.speechRate}x speed)`
@@ -745,7 +725,7 @@
             this.socket.emit("audio-stream-end");
           }
 
-          this.voiceButton.textContent = "🎤 Hold to Talk";
+          this.voiceButton.textContent = "🗣️ Bicara";
           this.voiceButton.classList.remove("listening");
           this.updateStatus("Processing your message...");
         }
@@ -805,7 +785,7 @@
           messageDiv.className = `message ${sender}`;
 
           if (sender === "assistant") {
-            messageDiv.innerHTML = `<strong>AI Assistant:</strong> <span class="message-content">${message}</span>`;
+            messageDiv.innerHTML = `<strong>FAZZRIE:</strong> <span class="message-content">${message}</span>`;
           } else if (sender === "transcript") {
             messageDiv.innerHTML = message;
           } else {
@@ -1262,7 +1242,7 @@
 
             this.speechRecognition.onend = () => {
               console.log("🤐 Browser speech recognition ended");
-              this.voiceButton.textContent = "🎤 Hold to Talk";
+              this.voiceButton.textContent = "🗣️ Bicara";
               this.voiceButton.classList.remove("listening");
               this.isRecording = false;
             };
