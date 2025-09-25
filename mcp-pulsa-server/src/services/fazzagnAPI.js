@@ -149,9 +149,9 @@ export class FazzagnAPI {
       // console.log('📥 [FAZZAGN API] Status Response Data:', JSON.stringify(statusResponse.data, null, 2));
 
       const result = {
-        phoneNumber: response.customerNumber,
+        phoneNumber: response.customer_number,
         amount: response.amount,
-        uniqueId: response.uniqueId
+        uniqueId: response.unique_id
       };
 
       console.log('✅ [FAZZAGN API] Purchase process completed successfully!');

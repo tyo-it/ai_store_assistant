@@ -324,15 +324,14 @@ class RealtimeVoiceAssistant {
                         //     provider: result.raw.provider
                         // };
 
-                        // TODO: pasang sini purchase nya
-                        await this.pulsaService.purchasePulsa(
+                        const purchaseResult = await this.pulsaService.purchasePulsa(
                             result.raw.phoneNumber,
                             result.raw.amount,
                             result.raw.understood,
                             result.raw.provider,
                             result.raw.referenceNumber
                         );
-                        this.client_ws?.emit('pending-purchase', result.raw);
+                        this.client_ws?.emit('pending-purchase', purchaseResult.raw);
                     }
                     break;
                 default:

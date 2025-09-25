@@ -9,7 +9,7 @@ class SpeechProcessor {
         /(?:ke|untuk)\s*((?:\+62|62|0)?8\d{8,12})/gi,
         /((?:\+62|62|0)?8\d{8,12})/gi,
       ],
-      
+
       // Amount extraction patterns - enhanced for better recognition
       amount: [
         // Match amount before "ribu" (e.g., "25 ribu", "lima puluh ribu")
@@ -22,15 +22,15 @@ class SpeechProcessor {
         // Match standalone numbers that could be amounts
         /(?:^|\s)(\d{1,3}(?:\.\d{3})*(?:\.000)?)(?:\s|$)/gi,
       ],
-      
+
       // Intent detection patterns - enhanced for variations
       intent: [
-        /(?:beli|beliakan|purchase|topup|top\s*up|isi(?:\s*ulang)?)\s*(?:pulsa|kredit|saldo)/gi,
-        /(?:mau|ingin|minta|pengen)\s*(?:beli|isi|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
-        /(?:tolong|please|mohon)\s*(?:belikan|isi(?:\s*ulang)?|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
-        /(?:pulsa|kredit|saldo).*(?:beli|isi|topup|top\s*up)/gi,
+        /(?:beli|belikan|purchase|topup|top\s*up|isi(?:\s*ulang)?|lanjut)\s*(?:pulsa|kredit|saldo)/gi,
+        /(?:mau|ingin|minta|pengen)\s*(?:beli|isi|topup|top\s*up|lanjut)\s*(?:pulsa|kredit)/gi,
+        /(?:tolong|please|mohon)\s*(?:belikan|isi(?:\s*ulang)?|topup|top\s*up|lanjut)\s*(?:pulsa|kredit)/gi,
+        /(?:pulsa|kredit|saldo).*(?:beli|isi|topup|top\s*up|lanjut)/gi,
       ],
-      
+
       // Provider detection patterns (optional, can be inferred from phone number)
       provider: [
         /(?:telkomsel|simpati|kartu as|as)/gi,
@@ -53,7 +53,7 @@ class SpeechProcessor {
       'lima puluh ribu': 50000,
       'seratus ribu': 100000,
       'dua ratus ribu': 200000,
-      
+
       // Short forms
       '5 ribu': 5000,
       '10 ribu': 10000,
@@ -63,7 +63,7 @@ class SpeechProcessor {
       '30 ribu': 30000,
       '50 ribu': 50000,
       '100 ribu': 100000,
-      
+
       // Abbreviated forms
       '5rb': 5000,
       '10rb': 10000,
@@ -79,7 +79,7 @@ class SpeechProcessor {
   parsePulsaCommand(speechText) {
     try {
       const text = speechText.toLowerCase().trim();
-      
+
       // Check if this is a pulsa purchase intent
       const hasIntent = this.detectPulsaIntent(text);
       if (!hasIntent) {
@@ -139,7 +139,7 @@ class SpeechProcessor {
         let phoneNumber = match[1];
         // Clean and normalize the phone number
         phoneNumber = phoneNumber.replace(/\s+/g, '');
-        
+
         // Validate basic format
         if (/^((\+62|62|0)?8\d{8,14})$/.test(phoneNumber)) {
           return phoneNumber;
@@ -173,15 +173,15 @@ class SpeechProcessor {
       const match = pattern.exec(text);
       if (match) {
         let amountStr = match[1];
-        
+
         // Handle different number formats
         if (amountStr.includes('.')) {
           // Handle format like "10.000" or "50.000"
           amountStr = amountStr.replace(/\./g, '');
         }
-        
+
         const amount = parseInt(amountStr);
-        
+
         // Validate reasonable pulsa amounts
         if (amount >= 1000 && amount <= 1000000) {
           return amount;
@@ -192,7 +192,7 @@ class SpeechProcessor {
       }
       pattern.lastIndex = 0; // Reset regex global flag
     }
-    
+
     return null;
   }
 
@@ -218,28 +218,28 @@ class SpeechProcessor {
 
   calculateConfidence(text, phoneNumber, amount) {
     let confidence = 0;
-    
+
     // Base confidence for finding required elements
     if (phoneNumber) confidence += 40;
     if (amount) confidence += 40;
-    
+
     // Bonus points for clear intent words
     if (/\b(beli|topup|isi|ulang)\b/.test(text)) confidence += 10;
     if (/\b(pulsa|kredit|saldo)\b/.test(text)) confidence += 10;
-    
+
     // Extra points for polite forms
     if (/\b(tolong|mohon|please)\b/.test(text)) confidence += 5;
-    
+
     // Bonus for specific number patterns
     if (/\d+\s*ribu/.test(text)) confidence += 5;
-    
+
     return Math.min(confidence, 100);
   }
 
   // Helper method to convert speech to structured command for the assistant
   speechToCommand(speechText) {
     const parsed = this.parsePulsaCommand(speechText);
-    
+
     if (!parsed.valid) {
       return {
         type: 'error',
@@ -279,13 +279,13 @@ class SpeechProcessor {
 
     const formattedAmount = this.formatAmount(result.amount);
     let response = `Baik, saya akan memproses pembelian pulsa ${formattedAmount} untuk nomor ${result.phoneNumber}`;
-    
+
     if (result.provider) {
       response += ` (${result.provider})`;
     }
-    
+
     response += '. Apakah Anda yakin ingin melanjutkan?';
-    
+
     return response;
   }
 }
