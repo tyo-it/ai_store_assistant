@@ -279,7 +279,8 @@ export class FazzagnAPI {
       price: available ? amount + Math.floor(amount * 0.05) : null, // Add 5% admin fee
       message: available ? 'Pulsa tersedia' : 'Nominal pulsa tidak tersedia',
       productCode: available ? `${provider?.toUpperCase() || 'UNKNOWN'}_${amount}` : null,
-      referenceNumber: available ? `REF_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : null
+      referenceNumber: available ? `REF_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : null,
+      availableAmounts: commonAmounts
     };
     
     console.log('🎭 [FAZZAGN API] Simulation result:', JSON.stringify(result, null, 2));

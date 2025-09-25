@@ -18,7 +18,7 @@ class RealtimeVoiceAssistant {
             voice: 'sage',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
-            instructions: 'Kamu adalah asisten pulsa yang santai dan ramah. Selalu jawab singkat dalam Bahasa Indonesia sehari-hari, maksimal 1 kalimat. Kalau ada yang mau beli pulsa, langsung proses aja pakai tools yang ada. Bicara seperti teman, jangan formal. Contoh: "Oke siap!", "Bentar ya", "Udah selesai!", "Ada masalah nih". When users mention pulsa, kredit, top up, isi ulang, or want to buy mobile credit: 1) Use process_pulsa_request to understand their request, 2) Use validate_phone_number if needed, 3) Use check_pulsa_availability to verify availability, 4) Ask for confirmation before purchase.',
+            instructions: 'Kamu adalah asisten pulsa yang santai dan ramah. Selalu jawab singkat dalam Bahasa Indonesia sehari-hari, maksimal 1 kalimat. Kalau ada yang mau beli pulsa, konfirmasi dulu sebelum proses. Bicara seperti teman, jangan formal. Contoh: "Oke siap!", "Bentar ya", "Udah selesai!", "Ada masalah nih". Kalo user bilang pulsa, kredit, top up, isi ulang, atau mau beli pulsa: 1) Pake process_pulsa_request kalo usernya udah konfirmasi beli pulsa, 2) pake validate_phone_number buat validasi nomor hpnya, 3) pake check_pulsa_availability untuk cek nominalnya ada atau enggak, 4) Minta konfirmasi dulu sebelum user setuju beli.',
             input_audio_transcription: {
                 model: 'whisper-1'
             },
@@ -305,13 +305,11 @@ class RealtimeVoiceAssistant {
                         functionArgs.amount
                     );
                     break;
-                    
                 case 'validate_phone_number':
                     result = await this.pulsaService.validatePhoneNumber(
                         functionArgs.phoneNumber
                     );
                     break;
-                    
                 case 'process_pulsa_request':
                     result = await this.pulsaService.processPulsaCommand(
                         functionArgs.speechText,
@@ -328,14 +326,13 @@ class RealtimeVoiceAssistant {
                         this.client_ws?.emit('pending-purchase', result.raw);
                     }
                     break;
-                    
-                    default:
-                        result = {
-                            success: false,
-                            message: `Unknown function: ${functionName}`
-                        };
-                    }
-                    console.log(`📥 [REALTIME] Function result:`, result);
+                default:
+                    result = {
+                        success: false,
+                        message: `Unknown function: ${functionName}`
+                    };
+                }
+                console.log(`📥 [REALTIME] Function result:`, result);
             
             // Send the function result back to OpenAI
             this.send({
