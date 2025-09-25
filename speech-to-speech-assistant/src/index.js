@@ -188,6 +188,7 @@ class AIAssistantApp {
                 if (clientSession && clientSession.assistant) {
                     try {
                         const response = await clientSession.assistant.confirmPulsaPurchase(data.confirmed);
+                        console.log('Pulsa confirmation response:', response);
                         if (response) {
                             socket.emit('text-response', {
                                 type: 'text-complete',

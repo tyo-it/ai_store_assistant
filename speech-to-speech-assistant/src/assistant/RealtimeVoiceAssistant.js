@@ -81,7 +81,7 @@ class RealtimeVoiceAssistant {
             ],
             tool_choice: 'auto',
             temperature: 0.8,
-            max_response_output_tokens: 4096
+            max_response_output_tokens: parseInt(process.env.MAX_RESPONSE_TOKENS || 150)
         };
         this.eventHandlers = new Map();
         
@@ -201,23 +201,23 @@ class RealtimeVoiceAssistant {
         // Built-in event handling
         switch (event.type) {
             case 'session.created':
-                console.log('✅ Session created');
+                // console.log('✅ Session created');
                 break;
             
             case 'session.updated':
-                console.log('🔄 Session updated');
+                // console.log('🔄 Session updated');
                 break;
             
             case 'conversation.item.created':
-                console.log('💬 Conversation item created:', event.item?.type);
+                // console.log('💬 Conversation item created:', event.item?.type);
                 break;
             
             case 'response.created':
-                console.log('🤖 Response created');
+                // console.log('🤖 Response created');
                 break;
             
             case 'response.done':
-                console.log('✅ Response completed');
+                // console.log('✅ Response completed');
                 break;
             
             case 'response.audio.delta':
@@ -229,11 +229,11 @@ class RealtimeVoiceAssistant {
                 break;
             
             case 'response.text.delta':
-                console.log('💬 Text delta received:', event.delta);
+                // console.log('💬 Text delta received:', event.delta);
                 break;
             
             case 'response.output_item.added':
-                console.log('📄 Output item added:', event.item?.type);
+                // console.log('📄 Output item added:', event.item?.type);
                 break;
             
             case 'response.content_part.added':
@@ -252,7 +252,7 @@ class RealtimeVoiceAssistant {
                 break;
             
             case 'response.audio_transcript.done':
-                console.log('✅ Audio transcript done:', event.transcript);
+                // console.log('✅ Audio transcript done:', event.transcript);
                 break;
             
             case 'response.function_call_arguments.delta':
@@ -613,14 +613,14 @@ class RealtimeVoiceAssistant {
             if (confirmed) {
                 console.log(`Confirming pulsa purchase: ${phoneNumber}, ${amount}`);
                 const result = await this.pulsaService.purchasePulsa(phoneNumber, amount, true);
-                
                 this.pendingPurchase = null;
                 
                 if (result.success) {
                     return {
                         type: 'text',
                         text: `Pembelian pulsa berhasil! ${result.message}`,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        data: result.data || null
                     };
                 } else {
                     return {

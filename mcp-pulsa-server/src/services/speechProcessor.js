@@ -1,4 +1,4 @@
-export class SpeechProcessor {
+class SpeechProcessor {
   constructor() {
     // Indonesian language patterns for pulsa purchase commands
     this.patterns = {
@@ -6,21 +6,29 @@ export class SpeechProcessor {
       phoneNumber: [
         /(?:nomor|nomer|hp|handphone|telepon)\s*(?:nya)?\s*(?:adalah|yaitu)?\s*((?:\+62|62|0)?8\d{8,12})/gi,
         /(?:ke|untuk)\s*(?:nomor|nomer)?\s*((?:\+62|62|0)?8\d{8,12})/gi,
+        /(?:ke|untuk)\s*((?:\+62|62|0)?8\d{8,12})/gi,
         /((?:\+62|62|0)?8\d{8,12})/gi,
       ],
       
-      // Amount extraction patterns
+      // Amount extraction patterns - enhanced for better recognition
       amount: [
-        /(?:pulsa|kredit|saldo)\s*(?:sebesar|senilai)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?|lima ribu|sepuluh ribu|dua puluh ribu|lima puluh ribu|seratus ribu)/gi,
-        /(?:isi|top\s*up|topup)\s*(?:pulsa)?\s*(?:sebesar|senilai)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?|lima ribu|sepuluh ribu|dua puluh ribu|lima puluh ribu|seratus ribu)/gi,
-        /(?:beli|beliakan|purchase)\s*(?:pulsa)?\s*(?:sebesar|senilai)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?|lima ribu|sepuluh ribu|dua puluh ribu|lima puluh ribu|seratus ribu)/gi,
+        // Match amount before "ribu" (e.g., "25 ribu", "lima puluh ribu")
+        /(\d{1,3})\s*ribu/gi,
+        /(\d{1,3}(?:\.\d{3})*)\s*(?:ribu|rb|k)/gi,
+        // Match amount with currency indicators
+        /(?:pulsa|kredit|saldo)\s*(?:sebesar|senilai|nominal)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?)/gi,
+        /(?:isi|top\s*up|topup|ulang)\s*(?:pulsa)?\s*(?:sebesar|senilai|nominal)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?)/gi,
+        /(?:beli|beliakan|purchase)\s*(?:pulsa)?\s*(?:sebesar|senilai|nominal)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?)/gi,
+        // Match standalone numbers that could be amounts
+        /(?:^|\s)(\d{1,3}(?:\.\d{3})*(?:\.000)?)(?:\s|$)/gi,
       ],
       
-      // Intent detection patterns
+      // Intent detection patterns - enhanced for variations
       intent: [
-        /(?:beli|beliakan|purchase|topup|top\s*up|isi)\s*(?:pulsa|kredit|saldo)/gi,
-        /(?:mau|ingin|minta)\s*(?:beli|isi|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
-        /(?:tolong|please)\s*(?:belikan|isi|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
+        /(?:beli|beliakan|purchase|topup|top\s*up|isi(?:\s*ulang)?)\s*(?:pulsa|kredit|saldo)/gi,
+        /(?:mau|ingin|minta|pengen)\s*(?:beli|isi|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
+        /(?:tolong|please|mohon)\s*(?:belikan|isi(?:\s*ulang)?|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
+        /(?:pulsa|kredit|saldo).*(?:beli|isi|topup|top\s*up)/gi,
       ],
       
       // Provider detection patterns (optional, can be inferred from phone number)
@@ -35,13 +43,36 @@ export class SpeechProcessor {
 
     // Number word to digit mapping for Indonesian
     this.numberWords = {
+      // Basic amounts
       'lima ribu': 5000,
       'sepuluh ribu': 10000,
       'lima belas ribu': 15000,
       'dua puluh ribu': 20000,
       'dua lima ribu': 25000,
+      'tiga puluh ribu': 30000,
       'lima puluh ribu': 50000,
       'seratus ribu': 100000,
+      'dua ratus ribu': 200000,
+      
+      // Short forms
+      '5 ribu': 5000,
+      '10 ribu': 10000,
+      '15 ribu': 15000,
+      '20 ribu': 20000,
+      '25 ribu': 25000,
+      '30 ribu': 30000,
+      '50 ribu': 50000,
+      '100 ribu': 100000,
+      
+      // Abbreviated forms
+      '5rb': 5000,
+      '10rb': 10000,
+      '15rb': 15000,
+      '20rb': 20000,
+      '25rb': 25000,
+      '30rb': 30000,
+      '50rb': 50000,
+      '100rb': 100000,
     };
   }
 
@@ -119,10 +150,20 @@ export class SpeechProcessor {
   }
 
   extractAmount(text) {
-    // First check for number words
+    // First check for number words (exact matches)
     for (const [word, value] of Object.entries(this.numberWords)) {
       if (text.includes(word)) {
         return value;
+      }
+    }
+
+    // Special handling for "X ribu" pattern (e.g., "25 ribu")
+    const ribusPattern = /(\d{1,3})\s*ribu/gi;
+    const ribusMatch = ribusPattern.exec(text);
+    if (ribusMatch) {
+      const number = parseInt(ribusMatch[1]);
+      if (number > 0 && number <= 999) {
+        return number * 1000; // Convert to full amount
       }
     }
 
@@ -142,11 +183,10 @@ export class SpeechProcessor {
         
         // Validate reasonable pulsa amounts
         if (amount >= 1000 && amount <= 1000000) {
-          // If amount is less than 1000, assume it's in thousands
-          if (amount < 1000) {
-            return amount * 1000;
-          }
           return amount;
+        } else if (amount < 1000 && amount > 0) {
+          // If amount is less than 1000, assume it's in thousands
+          return amount * 1000;
         }
       }
       pattern.lastIndex = 0; // Reset regex global flag
@@ -183,8 +223,14 @@ export class SpeechProcessor {
     if (amount) confidence += 40;
     
     // Bonus points for clear intent words
-    if (/\b(beli|topup|isi)\b/.test(text)) confidence += 10;
-    if (/\b(pulsa|kredit)\b/.test(text)) confidence += 10;
+    if (/\b(beli|topup|isi|ulang)\b/.test(text)) confidence += 10;
+    if (/\b(pulsa|kredit|saldo)\b/.test(text)) confidence += 10;
+    
+    // Extra points for polite forms
+    if (/\b(tolong|mohon|please)\b/.test(text)) confidence += 5;
+    
+    // Bonus for specific number patterns
+    if (/\d+\s*ribu/.test(text)) confidence += 5;
     
     return Math.min(confidence, 100);
   }
@@ -242,3 +288,5 @@ export class SpeechProcessor {
     return response;
   }
 }
+
+export { SpeechProcessor };

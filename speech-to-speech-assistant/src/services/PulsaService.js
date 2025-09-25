@@ -108,7 +108,7 @@ class PulsaService {
                 try {
                     const parsedContent = JSON.parse(textContent.text);
                     return {
-                        success: parsedContent.success || false,
+                        success: parsedContent.success || parsedContent.valid || parsedContent.available || false,
                         message: parsedContent.message || parsedContent.response || textContent.text,
                         data: parsedContent.data || null,
                         needsConfirmation: parsedContent.needs_confirmation || false,
@@ -136,49 +136,94 @@ class PulsaService {
     // Check if the speech text is related to pulsa operations
     isPulsaRelated(speechText) {
         const pulsaKeywords = [
-            'pulsa', 'kredit', 'top up', 'topup', 'isi ulang', 
+            'pulsa', 'kredit', 'top up', 'topup', 'isi ulang', 'isi',
             'beli pulsa', 'tambah pulsa', 'credit', 'saldo',
             'nomor', 'telepon', 'hp', 'handphone', 'phone',
-            'ribu', '000', 'rb', 'rupiah'
+            'ribu', '000', 'rb', 'rupiah', 'tolong', 'mohon'
         ];
 
         const lowerText = speechText.toLowerCase();
-        return pulsaKeywords.some(keyword => lowerText.includes(keyword));
+        
+        // Check for keywords
+        const hasKeywords = pulsaKeywords.some(keyword => lowerText.includes(keyword));
+        
+        // Check for intent patterns
+        const intentPatterns = [
+            /(?:beli|beliakan|purchase|topup|top\s*up|isi(?:\s*ulang)?)\s*(?:pulsa|kredit|saldo)/gi,
+            /(?:mau|ingin|minta|pengen)\s*(?:beli|isi|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
+            /(?:tolong|please|mohon)\s*(?:belikan|isi(?:\s*ulang)?|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
+        ];
+        
+        const hasIntent = intentPatterns.some(pattern => pattern.test(lowerText));
+        
+        return hasKeywords || hasIntent;
     }
 
     // Extract phone number and amount from speech text
     extractPulsaInfo(speechText) {
-        const phoneRegex = /(\+?62|0)[\s-]?(\d{2,4})[\s-]?(\d{3,4})[\s-]?(\d{3,5})/g;
-        const amountRegex = /(\d+)[\s]?(ribu|rb|000|rupiah)/gi;
+        const text = speechText.toLowerCase();
+        
+        // Enhanced phone number patterns
+        const phonePatterns = [
+            /(?:nomor|nomer|hp|handphone|telepon)\s*(?:nya)?\s*(?:adalah|yaitu)?\s*((?:\+62|62|0)?8\d{8,12})/gi,
+            /(?:ke|untuk)\s*(?:nomor|nomer)?\s*((?:\+62|62|0)?8\d{8,12})/gi,
+            /(?:ke|untuk)\s*((?:\+62|62|0)?8\d{8,12})/gi,
+            /((?:\+62|62|0)?8\d{8,12})/gi,
+        ];
+
+        // Enhanced amount patterns
+        const amountPatterns = [
+            /(\d{1,3})\s*ribu/gi,  // "25 ribu"
+            /(\d{1,3}(?:\.\d{3})*)\s*(?:ribu|rb|k)/gi,
+            /(\d+)[\s]?(ribu|rb|000|rupiah)/gi,
+        ];
 
         let phoneNumber = null;
         let amount = null;
 
         // Extract phone number
-        const phoneMatch = phoneRegex.exec(speechText);
-        if (phoneMatch) {
-            phoneNumber = phoneMatch[0].replace(/[\s-]/g, '');
-            // Normalize phone number format
-            if (phoneNumber.startsWith('0')) {
-                phoneNumber = '+62' + phoneNumber.substring(1);
-            } else if (!phoneNumber.startsWith('+62')) {
-                phoneNumber = '+62' + phoneNumber;
+        for (const pattern of phonePatterns) {
+            const match = pattern.exec(text);
+            if (match) {
+                phoneNumber = match[1].replace(/[\s-]/g, '');
+                
+                // Normalize phone number format
+                if (phoneNumber.startsWith('0')) {
+                    phoneNumber = phoneNumber; // Keep original format for Indonesian numbers
+                } else if (phoneNumber.startsWith('62')) {
+                    phoneNumber = '0' + phoneNumber.substring(2);
+                } else if (phoneNumber.startsWith('+62')) {
+                    phoneNumber = '0' + phoneNumber.substring(3);
+                }
+                break;
             }
+            pattern.lastIndex = 0; // Reset regex global flag
         }
 
         // Extract amount
-        const amountMatch = amountRegex.exec(speechText);
-        if (amountMatch) {
-            let value = parseInt(amountMatch[1]);
-            const unit = amountMatch[2].toLowerCase();
-            
-            if (unit === 'ribu' || unit === 'rb') {
-                amount = value * 1000;
-            } else if (unit === '000') {
-                amount = value * 1000;
-            } else {
-                amount = value;
+        for (const pattern of amountPatterns) {
+            const match = pattern.exec(text);
+            if (match) {
+                let value = parseInt(match[1]);
+                const unit = match[2] ? match[2].toLowerCase() : 'ribu';
+                
+                if (unit === 'ribu' || unit === 'rb' || unit === 'k') {
+                    amount = value * 1000;
+                } else if (unit === '000') {
+                    amount = value * 1000;
+                } else if (unit === 'rupiah') {
+                    amount = value;
+                } else {
+                    // If no unit specified but pattern matched, assume thousands
+                    amount = value * 1000;
+                }
+                
+                // Validate reasonable pulsa amounts
+                if (amount >= 1000 && amount <= 1000000) {
+                    break;
+                }
             }
+            pattern.lastIndex = 0; // Reset regex global flag
         }
 
         return { phoneNumber, amount };
