@@ -70,19 +70,19 @@ class AIAssistantApp {
 
             // Try Realtime API first, fallback to regular API
             let clientAssistant;
-            let usingFallback = false;
+            let usingFallback = true;
 
             try {
                 // Try Realtime API first
-                clientAssistant = new RealtimeVoiceAssistant();
+                clientAssistant = new FallbackVoiceAssistant();
                 await clientAssistant.connect();
                 console.log('✅ Using OpenAI Realtime API');
                 socket.emit('status', { 
                     connected: true, 
                     message: 'Connected to OpenAI Realtime API',
                     mode: 'realtime',
-                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1.0,
-                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 1.0
+                    speechRate: parseFloat(process.env.SPEECH_RATE) || 0.5,
+                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
                 });
             } catch (realtimeError) {
                 console.log('⚠️ Realtime API not available, using fallback mode');
@@ -96,8 +96,8 @@ class AIAssistantApp {
                     connected: true, 
                     message: 'Connected to OpenAI Chat API (Fallback Mode)',
                     mode: 'fallback',
-                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1.0,
-                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 1.0
+                    speechRate: parseFloat(process.env.SPEECH_RATE) || 0.5,
+                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
                 });
             }
 
@@ -266,11 +266,41 @@ class AIAssistantApp {
 
     setupFallbackHandlers(assistant, socket) {
         // Handle text responses (complete responses, not streaming)
-        assistant.on('response.text.complete', (event) => {
+        assistant.on('response.text.complete', async (event) => {
+            // Send text response first
             socket.emit('text-response', {
                 type: 'text-complete',
                 text: event.text
             });
+            
+            // Apply TTS to convert text to speech
+            try {
+                const TextToSpeech = require('./assistant/TextToSpeech');
+                const tts = new TextToSpeech();
+                
+                console.log('🔊 Converting AI response to speech:', event.text);
+                const audioResponse = await tts.synthesize(event.text, {
+                    speed: parseFloat(process.env.SPEECH_RATE) || 0.6,
+                    pitch: parseFloat(process.env.SPEECH_PITCH) || 0
+                });
+                
+                // Send audio response to client
+                socket.emit('audio-response', {
+                    type: 'audio-complete',
+                    audio: audioResponse,
+                    text: event.text
+                });
+                
+                console.log('✅ Audio response sent to client');
+            } catch (error) {
+                console.error('❌ TTS Error:', error.message);
+                // Still send a fallback message even if TTS fails
+                socket.emit('audio-response', {
+                    type: 'audio-fallback',
+                    message: 'Text-to-speech not available',
+                    text: event.text
+                });
+            }
         });
 
         // Handle response completion

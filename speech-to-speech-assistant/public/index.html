@@ -393,7 +393,7 @@
           this.speechSynthesis = window.speechSynthesis;
 
           // Speech settings (will be updated from server)
-          this.speechRate = 1.0; // Default fallback
+          this.speechRate = 0.5; // Default fallback - slower speech
           this.speechPitch = 1.0; // Default fallback
 
           this.initializeElements();
@@ -464,10 +464,10 @@
               this.mode = data.mode || "unknown";
 
               // Store speech settings from server
-              this.speechRate = data.speechRate || 1.0;
+              this.speechRate = data.speechRate || 0.5;
               this.speechPitch = data.speechPitch || 1.0;
               console.log(
-                `🎤 Speech settings: rate=${this.speechRate}, pitch=${this.speechPitch}`
+                `🎤 Speech settings received from server: rate=${this.speechRate}, pitch=${this.speechPitch}, mode=${this.mode}`
               );
 
               if (this.mode === "fallback") {
@@ -476,14 +476,16 @@
                   "Fallback Mode - Browser Speech"
                 );
                 this.updateStatus(
-                  "Ready! Using browser speech recognition and synthesis"
+                  `Ready! Using browser speech (${this.speechRate}x speed)`
                 );
               } else {
                 this.updateConnectionStatus(
                   "connected",
                   "Connected to OpenAI Realtime"
                 );
-                this.updateStatus("Ready! Hold the microphone button to talk");
+                this.updateStatus(
+                  `Ready! Realtime API (${this.speechRate}x speed)`
+                );
               }
 
               this.enableControls();
@@ -494,6 +496,13 @@
           this.socket.on("audio-response", (data) => {
             if (data.type === "audio-delta" && data.audio) {
               this.playAudioDelta(data.audio);
+            } else if (data.type === "audio-complete" && data.audio) {
+              // Handle server-side TTS audio response
+              this.playServerAudio(data.audio, data.text);
+            } else if (data.type === "audio-fallback" && data.text) {
+              // Fallback to browser TTS if server TTS failed
+              console.log("Server TTS failed, using browser TTS");
+              this.speakText(data.text);
             }
           });
 
@@ -503,11 +512,12 @@
             } else if (data.type === "text-complete" && data.text) {
               this.displayMessage("assistant", data.text);
 
-              // Always use text-to-speech to read the response when in fallback mode
-              // (In realtime mode, audio is handled directly via audio-response events)
-              if (this.mode === "fallback") {
-                this.speakText(data.text);
-              }
+              // In fallback mode, the server now handles TTS through audio-response events
+              // So we don't need to call speakText here anymore - it will be handled
+              // by the audio-response handler with improved server-side TTS
+              console.log(
+                "Text response received - audio will be handled by server TTS"
+              );
             }
           });
 
@@ -739,6 +749,16 @@
 
             const source = this.audioContext.createBufferSource();
             source.buffer = audioBufferObj;
+
+            // Apply speech rate control for Realtime API audio
+            // Use the speechRate from server settings (default 0.5 for slower speech)
+            const effectiveRate = this.speechRate || 0.5;
+            source.playbackRate.value = effectiveRate;
+
+            console.log(
+              `🎵 Playing audio at ${effectiveRate}x speed (speechRate: ${this.speechRate})`
+            );
+
             source.connect(this.audioContext.destination);
             source.start();
 
@@ -746,6 +766,70 @@
           } catch (error) {
             console.error("Error playing audio:", error);
           }
+        }
+
+        async playServerAudio(audioResponse, text) {
+          try {
+            console.log(
+              "🎵 Playing server-generated TTS audio:",
+              audioResponse.format
+            );
+
+            if (audioResponse.format === "mp3" && audioResponse.data) {
+              // Handle MP3 audio from Google Cloud TTS
+              const audioBlob = this.base64ToBlob(
+                audioResponse.data,
+                "audio/mp3"
+              );
+              const audioUrl = URL.createObjectURL(audioBlob);
+              const audio = new Audio(audioUrl);
+
+              // Apply speech rate control
+              const effectiveRate = this.speechRate || 0.5;
+              audio.playbackRate = effectiveRate;
+
+              audio.onplay = () => {
+                this.updateStatus("🔊 AI is speaking (server TTS)...");
+              };
+
+              audio.onended = () => {
+                this.updateStatus("Response complete. Ready for next input.");
+                URL.revokeObjectURL(audioUrl);
+              };
+
+              audio.onerror = (error) => {
+                console.error("Audio playback error:", error);
+                // Fallback to browser TTS
+                this.speakText(text);
+              };
+
+              await audio.play();
+            } else if (audioResponse.format === "system") {
+              // System TTS (macOS 'say' command) - audio is already played
+              this.updateStatus("🔊 AI spoke via system TTS");
+              setTimeout(() => {
+                this.updateStatus("Response complete. Ready for next input.");
+              }, 2000);
+            } else {
+              // Fallback to browser TTS for other formats
+              console.log("Falling back to browser TTS");
+              this.speakText(text);
+            }
+          } catch (error) {
+            console.error("Error playing server audio:", error);
+            // Fallback to browser TTS
+            this.speakText(text);
+          }
+        }
+
+        base64ToBlob(base64Data, contentType) {
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          return new Blob([byteArray], { type: contentType });
         }
 
         base64ToArrayBuffer(base64) {
@@ -778,21 +862,24 @@
             const voices = window.speechSynthesis.getVoices();
             const selectedVoice = this.voiceSelect.value;
 
-            // Map OpenAI voice names to similar browser voices
+            // Map OpenAI voice names to similar browser voices (Indonesian)
             const voiceMap = {
-              alloy: "Google US English",
-              echo: "Alex",
-              fable: "Samantha",
-              onyx: "Daniel",
-              nova: "Karen",
-              shimmer: "Tessa",
+              alloy: "Google Bahasa Indonesia",
+              echo: "Indonesian",
+              fable: "Bahasa Indonesia",
+              onyx: "Indonesian Male",
+              nova: "Indonesian Female",
+              shimmer: "Bahasa Indonesia Female",
             };
 
             const preferredVoiceName = voiceMap[selectedVoice] || selectedVoice;
             const matchedVoice = voices.find(
               (voice) =>
                 voice.name.includes(preferredVoiceName) ||
-                voice.name.includes("English")
+                voice.name.includes("Indonesian") ||
+                voice.name.includes("Bahasa") ||
+                voice.lang === "id-ID" ||
+                voice.lang === "id"
             );
 
             if (matchedVoice) {
@@ -800,7 +887,7 @@
             }
 
             // Use dynamic speech settings from server
-            utterance.rate = this.speechRate || 0.3; // Fallback to 0.3 if not set
+            utterance.rate = this.speechRate || 0.5; // Fallback to 0.5 if not set
             utterance.pitch = this.speechPitch || 1.0; // Fallback to 1.0 if not set
             utterance.volume = 1.0;
 

@@ -72,7 +72,7 @@ class FallbackVoiceAssistant {
                 messages: [
                     {
                         role: 'system',
-                        content: 'You are a helpful AI assistant. Provide concise, helpful responses suitable for both text and speech output. Keep responses conversational and under 150 words. When your response will be spoken aloud, structure it with natural pauses and clear pronunciation in mind.'
+                        content: 'You are a helpful AI assistant. Please respond ONLY in Bahasa Indonesia. Provide concise, helpful responses suitable for both text and speech output. Keep responses conversational and under 150 words. When your response will be spoken aloud, structure it with natural pauses and clear pronunciation in mind. Use simple, clear Indonesian language that can be easily understood when spoken slowly and distinctly. Always use Indonesian language - never use English.'
                     },
                     ...this.conversationHistory.slice(-10) // Keep last 10 messages for context
                 ],

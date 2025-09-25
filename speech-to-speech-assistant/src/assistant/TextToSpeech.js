@@ -32,9 +32,10 @@ class TextToSpeech {
     async synthesize(text, options = {}) {
         try {
             const synthesisOptions = {
-                voice: options.voice || 'en-US-Standard-A',
-                speed: options.speed || 1.0,
-                pitch: options.pitch || 0,
+                voice: options.voice || process.env.DEFAULT_VOICE || 'id-ID-Standard-A',
+                languageCode: options.languageCode || process.env.DEFAULT_LANGUAGE || 'id-ID',
+                speed: options.speed || parseFloat(process.env.SPEECH_RATE) || 0.8,
+                pitch: options.pitch || parseFloat(process.env.SPEECH_PITCH) || 0,
                 ...options
             };
 
@@ -53,11 +54,15 @@ class TextToSpeech {
 
     async synthesizeWithGoogleCloud(text, options) {
         try {
+            // Determine language code from voice or use environment default
+            const languageCode = options.languageCode || process.env.DEFAULT_LANGUAGE || 'id-ID';
+            const voiceName = options.voice || process.env.DEFAULT_VOICE || 'id-ID-Standard-A';
+            
             const request = {
                 input: { text: text },
                 voice: {
-                    languageCode: 'en-US',
-                    name: options.voice,
+                    languageCode: languageCode,
+                    name: voiceName,
                     ssmlGender: 'NEUTRAL'
                 },
                 audioConfig: {
@@ -84,8 +89,8 @@ class TextToSpeech {
     async synthesizeWithSay(text, options) {
         return new Promise((resolve, reject) => {
             try {
-                // Use local system TTS
-                this.say.speak(text, options.voice || null, options.speed || 1.0, (err) => {
+                // Use local system TTS with slower speed for clarity
+                this.say.speak(text, options.voice || null, options.speed || 0.6, (err) => {
                     if (err) {
                         console.error('Say TTS error:', err);
                         reject(err);
@@ -159,7 +164,35 @@ class TextToSpeech {
             }));
         } catch (error) {
             console.error('Error getting voices:', error);
-            return ['en-US-Standard-A', 'en-US-Standard-B'];
+            return ['id-ID-Standard-A', 'id-ID-Standard-B', 'id-ID-Wavenet-A', 'id-ID-Wavenet-B'];
+        }
+    }
+
+    // Get available Indonesian voices specifically
+    async getIndonesianVoices() {
+        if (!this.isGoogleCloudAvailable) {
+            return [
+                { name: 'id-ID-Standard-A', gender: 'FEMALE', type: 'Standard' },
+                { name: 'id-ID-Standard-B', gender: 'MALE', type: 'Standard' }
+            ];
+        }
+
+        try {
+            const [result] = await this.ttsClient.listVoices({ languageCode: 'id-ID' });
+            return result.voices.map(voice => ({
+                name: voice.name,
+                language: voice.languageCodes[0],
+                gender: voice.ssmlGender,
+                type: voice.name.includes('Wavenet') ? 'Wavenet' : 'Standard'
+            }));
+        } catch (error) {
+            console.error('Error getting Indonesian voices:', error);
+            return [
+                { name: 'id-ID-Standard-A', gender: 'FEMALE', type: 'Standard' },
+                { name: 'id-ID-Standard-B', gender: 'MALE', type: 'Standard' },
+                { name: 'id-ID-Wavenet-A', gender: 'FEMALE', type: 'Wavenet' },
+                { name: 'id-ID-Wavenet-B', gender: 'MALE', type: 'Wavenet' }
+            ];
         }
     }
 }

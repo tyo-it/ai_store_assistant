@@ -33,8 +33,11 @@ class VoiceAssistant {
             // Process the text message
             const aiResponse = await this.processTextMessage(transcript);
             
-            // Convert response to speech
-            const audioResponse = await this.textToSpeech.synthesize(aiResponse.text);
+            // Convert response to speech with slower, clearer settings
+            const audioResponse = await this.textToSpeech.synthesize(aiResponse.text, {
+                speed: parseFloat(process.env.SPEECH_RATE) || 0.5,
+                pitch: parseFloat(process.env.SPEECH_PITCH) || 0
+            });
             
             return {
                 type: 'voice',

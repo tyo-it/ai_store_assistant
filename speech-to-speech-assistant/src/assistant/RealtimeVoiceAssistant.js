@@ -13,15 +13,15 @@ class RealtimeVoiceAssistant {
             voice: 'alloy',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
-            instructions: 'You are a helpful AI assistant. Please speak slowly and clearly, with natural pauses between sentences for better understanding.',
+            instructions: 'You are a helpful AI assistant. Please respond in Bahasa Indonesia and speak very slowly and clearly, with natural pauses between sentences and words for better understanding. Take your time with each word, pronounce everything distinctly, and avoid rushing. Use a calm, measured pace throughout your responses. Always respond in Indonesian language.',
             input_audio_transcription: {
                 model: 'whisper-1'
             },
             turn_detection: {
                 type: 'server_vad',
                 threshold: 0.5,
-                prefix_padding_ms: 300,
-                silence_duration_ms: 200
+                prefix_padding_ms: 500,
+                silence_duration_ms: 800
             },
             tools: [],
             tool_choice: 'auto',
