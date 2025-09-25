@@ -1,502 +1,496 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenAI Realtime Voice Assistant</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenAI Realtime Voice Assistant</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      border-radius: 24px;
+      padding: 2.5rem;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+      max-width: 700px;
+      width: 95%;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      color: #2a5298;
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 1.1rem;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+      font-weight: 500;
+    }
+
+    .status-badge.connected {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-badge.connecting {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeaa7;
+    }
+
+    .status-badge.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .chat-container {
+      height: 350px;
+      overflow-y: auto;
+      border: 2px solid #e9ecef;
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      background: #f8f9fa;
+    }
+
+    .message {
+      margin-bottom: 1rem;
+      padding: 1rem 1.5rem;
+      border-radius: 18px;
+      max-width: 85%;
+      word-wrap: break-word;
+    }
+
+    .message.user {
+      background: #2a5298;
+      color: white;
+      margin-left: auto;
+    }
+
+    .message.assistant {
+      background: white;
+      color: #333;
+      border: 1px solid #dee2e6;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .message.transcript {
+      background: #e3f2fd;
+      color: #1565c0;
+      font-style: italic;
+      border-left: 4px solid #2196f3;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .voice-controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .voice-button {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 1.2rem 2rem;
+      border-radius: 50px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      flex: 1;
+      position: relative;
+    }
+
+    .voice-button:hover:not(:disabled) {
+      background: #218838;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+    }
+
+    .voice-button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+
+    .voice-button.listening {
+      background: #dc3545;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
       }
 
-      body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: #333;
+      70% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
       }
 
-      .container {
-        background: white;
-        border-radius: 24px;
-        padding: 2.5rem;
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-        max-width: 700px;
-        width: 95%;
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
       }
+    }
 
-      .header {
-        text-align: center;
-        margin-bottom: 2rem;
-      }
+    .interrupt-button {
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 0.8rem 1.5rem;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.3s;
+    }
 
-      .header h1 {
-        color: #2a5298;
-        margin-bottom: 0.5rem;
-        font-size: 2rem;
-      }
+    .interrupt-button:hover:not(:disabled) {
+      background: #5a6268;
+    }
 
-      .header p {
-        color: #666;
-        font-size: 1.1rem;
-      }
+    .interrupt-button:disabled {
+      background: #adb5bd;
+      cursor: not-allowed;
+    }
 
-      .status-badge {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        margin-top: 1rem;
-        font-weight: 500;
-      }
+    .settings {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
 
-      .status-badge.connected {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
+    .voice-select {
+      padding: 0.7rem 1rem;
+      border: 2px solid #e9ecef;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      outline: none;
+      background: white;
+    }
 
-      .status-badge.connecting {
-        background: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeaa7;
-      }
+    .voice-select:focus {
+      border-color: #2a5298;
+    }
 
-      .status-badge.error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
+    .voice-select:disabled {
+      background: #f8f9fa;
+      cursor: not-allowed;
+    }
 
-      .chat-container {
-        height: 350px;
-        overflow-y: auto;
-        border: 2px solid #e9ecef;
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        background: #f8f9fa;
-      }
+    .text-input {
+      display: flex;
+      gap: 0.5rem;
+    }
 
-      .message {
-        margin-bottom: 1rem;
-        padding: 1rem 1.5rem;
-        border-radius: 18px;
-        max-width: 85%;
-        word-wrap: break-word;
-      }
+    .text-input input {
+      flex: 1;
+      padding: 1rem 1.5rem;
+      border: 2px solid #e9ecef;
+      border-radius: 25px;
+      outline: none;
+      font-size: 1rem;
+    }
 
-      .message.user {
-        background: #2a5298;
-        color: white;
-        margin-left: auto;
-      }
+    .text-input input:focus {
+      border-color: #2a5298;
+    }
 
-      .message.assistant {
-        background: white;
-        color: #333;
-        border: 1px solid #dee2e6;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      }
+    .text-input input:disabled {
+      background: #f8f9fa;
+      cursor: not-allowed;
+    }
 
-      .message.transcript {
-        background: #e3f2fd;
-        color: #1565c0;
-        font-style: italic;
-        border-left: 4px solid #2196f3;
-      }
+    .text-input button {
+      background: #2a5298;
+      color: white;
+      border: none;
+      padding: 1rem 2rem;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
 
-      .controls {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-      }
+    .text-input button:hover:not(:disabled) {
+      background: #1e3c72;
+    }
 
-      .voice-controls {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-      }
+    .text-input button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
 
-      .voice-button {
-        background: #28a745;
-        color: white;
-        border: none;
-        padding: 1.2rem 2rem;
-        border-radius: 50px;
-        cursor: pointer;
-        font-size: 1.1rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        flex: 1;
-        position: relative;
-      }
+    .confirmation-buttons {
+      background: #fff3cd;
+      border: 2px solid #ffeaa7;
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+      text-align: center;
+    }
 
-      .voice-button:hover:not(:disabled) {
-        background: #218838;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
-      }
+    .confirmation-message {
+      color: #856404;
+      font-weight: 500;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+    }
 
-      .voice-button:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
-      }
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+    }
 
-      .voice-button.listening {
-        background: #dc3545;
-        animation: pulse 1.5s infinite;
-      }
+    .confirm-btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      min-width: 120px;
+    }
 
-      @keyframes pulse {
-        0% {
-          transform: scale(1);
-          box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-        }
-        70% {
-          transform: scale(1.05);
-          box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
-        }
-        100% {
-          transform: scale(1);
-          box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-        }
-      }
+    .confirm-btn.yes {
+      background: #28a745;
+      color: white;
+    }
 
-      .interrupt-button {
-        background: #6c757d;
-        color: white;
-        border: none;
-        padding: 0.8rem 1.5rem;
-        border-radius: 25px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: background 0.3s;
-      }
+    .confirm-btn.yes:hover {
+      background: #218838;
+      transform: translateY(-2px);
+    }
 
-      .interrupt-button:hover:not(:disabled) {
-        background: #5a6268;
-      }
+    .confirm-btn.no {
+      background: #dc3545;
+      color: white;
+    }
 
-      .interrupt-button:disabled {
-        background: #adb5bd;
-        cursor: not-allowed;
-      }
+    .confirm-btn.no:hover {
+      background: #c82333;
+      transform: translateY(-2px);
+    }
 
-      .settings {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        flex-wrap: wrap;
-      }
+    .status {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.95rem;
+      color: #666;
+      background: #f8f9fa;
+      border-radius: 12px;
+      margin-top: 1rem;
+    }
 
-      .voice-select {
-        padding: 0.7rem 1rem;
-        border: 2px solid #e9ecef;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        outline: none;
-        background: white;
-      }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: #f8f9fa;
+      border-radius: 16px;
+    }
 
-      .voice-select:focus {
-        border-color: #2a5298;
-      }
+    .feature {
+      text-align: center;
+      padding: 1rem;
+    }
 
-      .voice-select:disabled {
-        background: #f8f9fa;
-        cursor: not-allowed;
-      }
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
 
-      .text-input {
-        display: flex;
-        gap: 0.5rem;
-      }
+    .feature h3 {
+      color: #2a5298;
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+    }
 
-      .text-input input {
-        flex: 1;
-        padding: 1rem 1.5rem;
-        border: 2px solid #e9ecef;
-        border-radius: 25px;
-        outline: none;
-        font-size: 1rem;
-      }
+    .feature p {
+      color: #666;
+      font-size: 0.9rem;
+    }
 
-      .text-input input:focus {
-        border-color: #2a5298;
-      }
+    /* Modal for custom stop dialog */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+      z-index: 9999;
+    }
 
-      .text-input input:disabled {
-        background: #f8f9fa;
-        cursor: not-allowed;
-      }
+    .modal {
+      background: #ffffff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 420px;
+      padding: 1.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      text-align: center;
+    }
 
-      .text-input button {
-        background: #2a5298;
-        color: white;
-        border: none;
-        padding: 1rem 2rem;
-        border-radius: 25px;
-        cursor: pointer;
-        font-size: 1rem;
-        font-weight: 600;
-        transition: background 0.3s;
-      }
+    .modal h3 {
+      color: #2a5298;
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
 
-      .text-input button:hover:not(:disabled) {
-        background: #1e3c72;
-      }
+    .modal p {
+      color: #666;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
 
-      .text-input button:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
-      }
+    .qr-code {
+      display: block;
+      margin: 0.5rem auto 1rem;
+      width: 200px;
+      height: 200px;
+      border-radius: 12px;
+      background: #f8f9fa;
+      padding: 0.5rem;
+      border: 1px solid #e9ecef;
+    }
 
-      .confirmation-buttons {
-        background: #fff3cd;
-        border: 2px solid #ffeaa7;
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        text-align: center;
-      }
+    /* Canvas target for generated QR */
+    #qr-code {
+      display: block;
+      margin: 0.5rem auto 1rem;
+      width: 200px;
+      height: 200px;
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 12px;
+    }
 
-      .confirmation-message {
-        color: #856404;
-        font-weight: 500;
-        margin-bottom: 1rem;
-        font-size: 1rem;
-      }
+    .modal-actions {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
 
-      .button-group {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-      }
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>FAZZRIE</h1>
+      <p>FAZZ Resourceful Intelligent Entity</p>
+      <div class="status-badge connecting" id="connectionStatus">
+        Connecting...
+      </div>
+    </div>
 
-      .confirm-btn {
-        padding: 0.75rem 1.5rem;
-        border: none;
-        border-radius: 12px;
-        font-size: 1rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        min-width: 120px;
-      }
+    <div class="chat-container" id="chatContainer">
+      <div class="message assistant">
+        <strong>FAZZRIE:</strong>
+        <span class="message-content">Halo! Ada yang bisa saya bantu
+        </span>
+      </div>
+    </div>
 
-      .confirm-btn.yes {
-        background: #28a745;
-        color: white;
-      }
+    <div class="controls">
+      <div class="voice-controls">
+        <button class="voice-button" id="voiceButton" disabled>
+          🗣️ Bicara
+        </button>
+        <button class="interrupt-button" id="interruptButton" disabled>
+          Berhenti
+        </button>
+      </div>
+    </div>
 
-      .confirm-btn.yes:hover {
-        background: #218838;
-        transform: translateY(-2px);
-      }
+    <div class="text-input">
+      <input type="text" id="textInput" placeholder="Tulis pesan disini..." disabled />
+      <button id="sendButton" disabled>Kirim</button>
+    </div>
 
-      .confirm-btn.no {
-        background: #dc3545;
-        color: white;
-      }
+    <br />
+    <div class="settings">
+      <select class="voice-select" id="voiceSelect" disabled>
+        <option value="alloy">Alloy</option>
+        <option value="ash">Ash</option>
+        <option value="ballad">Ballad</option>
+        <option value="coral">Coral</option>
+        <option value="echo">Echo</option>
+        <option value="sage">Sage</option>
+        <option value="shimmer">Shimmer</option>
+        <option value="verse">Verse</option>
+        <option value="marin">Marin</option>
+        <option value="cedar">Cedar</option>
+      </select>
+    </div>
 
-      .confirm-btn.no:hover {
-        background: #c82333;
-        transform: translateY(-2px);
-      }
+    <!-- Pulsa Confirmation Buttons -->
+    <div class="confirmation-buttons" id="confirmationButtons" style="display: none">
+      <p class="confirmation-message" id="confirmationMessage"></p>
+      <div class="button-group">
+        <button id="confirmYes" class="confirm-btn yes">Ya, Lanjutkan</button>
+        <button id="confirmNo" class="confirm-btn no">Batal</button>
+      </div>
+    </div>
 
-      .status {
-        text-align: center;
-        padding: 1rem;
-        font-size: 0.95rem;
-        color: #666;
-        background: #f8f9fa;
-        border-radius: 12px;
-        margin-top: 1rem;
-      }
-
-      .features {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-top: 2rem;
-        padding: 1.5rem;
-        background: #f8f9fa;
-        border-radius: 16px;
-      }
-
-      .feature {
-        text-align: center;
-        padding: 1rem;
-      }
-
-      .feature-icon {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-      }
-
-      .feature h3 {
-        color: #2a5298;
-        margin-bottom: 0.5rem;
-        font-size: 1rem;
-      }
-
-      .feature p {
-        color: #666;
-        font-size: 0.9rem;
-      }
-
-      /* Modal for custom stop dialog */
-      .modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: none;
-        justify-content: center;
-        align-items: center;
-        padding: 1rem;
-        z-index: 9999;
-      }
-
-      .modal {
-        background: #ffffff;
-        border-radius: 16px;
-        width: 100%;
-        max-width: 420px;
-        padding: 1.5rem;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-        text-align: center;
-      }
-
-      .modal h3 {
-        color: #2a5298;
-        font-size: 1.25rem;
-        margin-bottom: 0.5rem;
-      }
-
-      .modal p {
-        color: #666;
-        margin-bottom: 1rem;
-        font-size: 0.95rem;
-      }
-
-      .qr-code {
-        display: block;
-        margin: 0.5rem auto 1rem;
-        width: 200px;
-        height: 200px;
-        border-radius: 12px;
-        background: #f8f9fa;
-        padding: 0.5rem;
-        border: 1px solid #e9ecef;
-      }
-
-      /* Canvas target for generated QR */
-      #qr-code {
-        display: block;
-        margin: 0.5rem auto 1rem;
-        width: 200px;
-        height: 200px;
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 12px;
-      }
-
-      .modal-actions {
-        display: flex;
-        justify-content: center;
-        gap: 0.75rem;
-        margin-top: 0.5rem;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>FAZZRIE</h1>
-        <p>FAZZ Resourceful Intelligent Entity</p>
-        <div class="status-badge connecting" id="connectionStatus">
-          Connecting...
+    <!-- Custom Stop Modal with QR Code -->
+    <div id="stopDialog" class="modal-overlay" style="display: none">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stopDialogTitle">
+        <p>Pindai QR untuk untuk melakukan pembayaran.</p>
+        <canvas id="qr-code"></canvas>
+        <div class="modal-actions">
+          <button id="stopCancel" class="confirm-btn yes">Tutup</button>
         </div>
       </div>
+    </div>
 
-      <div class="chat-container" id="chatContainer">
-        <div class="message assistant">
-          <strong>FAZZRIE:</strong>
-          <span class="message-content"
-            >Halo! Ada yang bisa saya bantu
-          </span>
-        </div>
-      </div>
-
-      <div class="controls">
-        <div class="voice-controls">
-          <button class="voice-button" id="voiceButton" disabled>
-            🗣️ Bicara
-          </button>
-          <button class="interrupt-button" id="interruptButton" disabled>
-            Berhenti
-          </button>
-        </div>
-      </div>
-
-      <div class="text-input">
-        <input
-          type="text"
-          id="textInput"
-          placeholder="Tulis pesan disini..."
-          disabled
-        />
-        <button id="sendButton" disabled>Kirim</button>
-      </div>
-
-      <br/>
-      <div class="settings">
-        <select class="voice-select" id="voiceSelect" disabled>
-          <option value="alloy">Alloy</option>
-          <option value="ash">Ash</option>
-          <option value="ballad">Ballad</option>
-          <option value="coral">Coral</option>
-          <option value="echo">Echo</option>
-          <option value="sage">Sage</option>
-          <option value="shimmer">Shimmer</option>
-          <option value="verse">Verse</option>
-          <option value="marin">Marin</option>
-          <option value="cedar">Cedar</option>
-        </select>
-      </div>
-
-      <!-- Pulsa Confirmation Buttons -->
-      <div
-        class="confirmation-buttons"
-        id="confirmationButtons"
-        style="display: none"
-      >
-        <p class="confirmation-message" id="confirmationMessage"></p>
-        <div class="button-group">
-          <button id="confirmYes" class="confirm-btn yes">Ya, Lanjutkan</button>
-          <button id="confirmNo" class="confirm-btn no">Batal</button>
-        </div>
-      </div>
-
-      <!-- Custom Stop Modal with QR Code -->
-      <div id="stopDialog" class="modal-overlay" style="display: none">
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stopDialogTitle">
-          <p>Pindai QR untuk untuk melakukan pembayaran.</p>
-          <canvas id="qr-code"></canvas>
-          <div class="modal-actions">
-            <button id="stopCancel" class="confirm-btn yes">Tutup</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="status" id="status">Connecting to OpenAI Realtime API...</div>
+    <div class="status" id="status">Connecting to OpenAI Realtime API...</div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
@@ -711,14 +705,14 @@
               this.displayMessage("transcript", `You said: "${data.text}"`);
             }
           });
-          
+
           this.socket.on("pending-purchase", (data) => {
             console.log("pending-purchase", data);
-            
+
             const overlay = document.getElementById("stopDialog");
             if (overlay) overlay.style.display = "flex";
-            
-            var url = 'https://chat.clydev.com/payment/'+data.uniqueId;
+
+            var url = 'https://chat.clydev.com/payment/' + data.uniqueId;
             const canvas = document.getElementById("qr-code");
             try {
               QRCode.toCanvas(
@@ -743,8 +737,8 @@
 
           this.socket.on("error", (error) => {
             console.error("Socket error:", error);
-            this.updateConnectionStatus("error", "Error: " + error);
-            this.updateStatus("Error: " + error);
+            // this.updateConnectionStatus("error", "Error: " + error);
+            // this.updateStatus("Error: " + error);
           });
 
           this.socket.on("disconnect", () => {
@@ -1385,5 +1379,6 @@
         new RealtimeVoiceClient();
       });
     </script>
-  </body>
+</body>
+
 </html>
