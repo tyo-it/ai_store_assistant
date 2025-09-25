@@ -85,7 +85,7 @@ class RealtimeVoiceAssistant {
             max_response_output_tokens: parseInt(process.env.MAX_RESPONSE_TOKENS || 150)
         };
         this.eventHandlers = new Map();
-        
+
         // Initialize pulsa service
         this.initializePulsaService();
     }
@@ -110,7 +110,7 @@ class RealtimeVoiceAssistant {
         }
 
         const url = `wss://api.openai.com/v1/realtime?model=${this.sessionConfig.model}`;
-        
+
         return new Promise((resolve, reject) => {
             this.ws = new WebSocket(url, {
                 headers: {
@@ -185,7 +185,7 @@ class RealtimeVoiceAssistant {
     // Handle incoming realtime events
     handleRealtimeEvent(event) {
         // console.log(`📨 Received event: ${event.type}`);
-        
+
         // Log full event data for debugging response events
         if (event.type.startsWith('response.')) {
             if (!event.type.includes('audio')) {
@@ -204,39 +204,39 @@ class RealtimeVoiceAssistant {
             case 'session.created':
                 console.log('✅ Session created');
                 break;
-            
+
             case 'session.updated':
                 // console.log('🔄 Session updated');
                 break;
-            
+
             case 'conversation.item.created':
                 // console.log('💬 Conversation item created:', event.item?.type);
                 break;
-            
+
             case 'response.created':
                 // console.log('🤖 Response created');
                 break;
-            
+
             case 'response.done':
                 // console.log('✅ Response completed');
                 break;
-            
+
             case 'response.audio.delta':
                 // console.log('🎵 Audio delta received');
                 break;
-            
+
             case 'response.audio_transcript.delta':
                 // console.log('📝 Audio transcript delta received');
                 break;
-            
+
             case 'response.text.delta':
                 // console.log('💬 Text delta received:', event.delta);
                 break;
-            
+
             case 'response.output_item.added':
                 // console.log('📄 Output item added:', event.item?.type);
                 break;
-            
+
             case 'response.content_part.added':
                 // console.log('📝 Content part added:', event.part?.type);
                 // // Handle function calls that come as content parts
@@ -251,20 +251,20 @@ class RealtimeVoiceAssistant {
                     }
                 }
                 break;
-            
+
             case 'response.audio_transcript.done':
                 // console.log('✅ Audio transcript done:', event.transcript);
                 break;
-            
+
             case 'response.function_call_arguments.delta':
                 // console.log('🔧 Function call arguments delta:', event.delta);
                 break;
-            
+
             case 'response.function_call_arguments.done':
                 // console.log('🔧 Function call arguments done:', event.name, event.arguments);
                 this.handleFunctionCall(event);
                 break;
-            
+
             case 'response.output_item.added':
                 console.log('📄 Output item added:', event.item?.type);
                 // Handle function calls that come as output items
@@ -272,15 +272,15 @@ class RealtimeVoiceAssistant {
                     console.log('🔧 Function call output item:', event.item);
                 }
                 break;
-            
+
             case 'input_audio_buffer.speech_started':
                 console.log('🎙️ Speech started');
                 break;
-            
+
             case 'input_audio_buffer.speech_stopped':
                 console.log('🤐 Speech stopped');
                 break;
-            
+
             case 'error':
                 console.error('❌ Realtime API error:', event.error);
                 break;
@@ -292,16 +292,16 @@ class RealtimeVoiceAssistant {
         try {
             const functionName = event.name;
             const functionArgs = JSON.parse(event.arguments);
-            
+
             console.log(`🔧 [REALTIME] Function call: ${functionName}`);
             console.log(`📤 [REALTIME] Function args:`, functionArgs);
-            
+
             let result;
-            
+
             switch (functionName) {
                 case 'check_pulsa_availability':
                     result = await this.pulsaService.checkAvailability(
-                        functionArgs.phoneNumber, 
+                        functionArgs.phoneNumber,
                         functionArgs.amount
                     );
                     break;
@@ -312,12 +312,40 @@ class RealtimeVoiceAssistant {
                     break;
                 case 'process_pulsa_request':
                     result = await this.pulsaService.processPulsaCommand(
-                        functionArgs.speechText,
-                        this.sessionId
+                        functionArgs.phoneNumber,
+                        functionArgs.amount,
+                        functionArgs.userConfirmation,
+                        functionArgs.provider
                     );
-                    
+
                     // If this is a pulsa request that's ready to purchase, proceed automatically
-                    if (result.raw && result.raw.understood && result.raw.readyToPurchase) {                        
+                    if (result.raw && result.raw.understood && result.raw.readyToPurchase) {
+                        // this.pendingPurchase = {
+                        //     phoneNumber: result.raw.phoneNumber,
+                        //     amount: result.raw.amount,
+                        //     provider: result.raw.provider
+                        // };
+
+                        // TODO: pasang sini purchase nya
+                        await this.pulsaService.purchasePulsa(
+                            result.raw.phoneNumber,
+                            result.raw.amount,
+                            result.raw.provider,
+                            result.raw.referenceNumber
+                        );
+                        this.client_ws?.emit('pending-purchase', result.raw);
+                    }
+                    break;
+                case 'process_pulsa_request':
+                    result = await this.pulsaService.processPulsaCommand(
+                        functionArgs.phoneNumber,
+                        functionArgs.amount,
+                        functionArgs.userConfirmation,
+                        functionArgs.provider
+                    );
+
+                    // If this is a pulsa request that's ready to purchase, proceed automatically
+                    if (result.raw && result.raw.understood && result.raw.readyToPurchase) {
                         this.pendingPurchase = {
                             phoneNumber: result.raw.phoneNumber,
                             amount: result.raw.amount,
@@ -331,9 +359,9 @@ class RealtimeVoiceAssistant {
                         success: false,
                         message: `Unknown function: ${functionName}`
                     };
-                }
-                console.log(`📥 [REALTIME] Function result:`, result);
-            
+            }
+            console.log(`📥 [REALTIME] Function result:`, result);
+
             // Send the function result back to OpenAI
             this.send({
                 type: 'conversation.item.create',
@@ -343,15 +371,15 @@ class RealtimeVoiceAssistant {
                     output: JSON.stringify(result)
                 }
             });
-            
+
             // Generate response based on the function result
             this.send({
                 type: 'response.create'
             });
-            
+
         } catch (error) {
             console.error('❌ [REALTIME] Function call error:', error);
-            
+
             // Send error response back to OpenAI
             this.send({
                 type: 'conversation.item.create',
@@ -364,7 +392,7 @@ class RealtimeVoiceAssistant {
                     })
                 }
             });
-            
+
             this.send({
                 type: 'response.create'
             });
@@ -399,7 +427,7 @@ class RealtimeVoiceAssistant {
 
         // Convert audio buffer to base64
         const base64Audio = audioBuffer.toString('base64');
-        
+
         const audioAppend = {
             type: 'input_audio_buffer.append',
             audio: base64Audio
@@ -437,13 +465,13 @@ class RealtimeVoiceAssistant {
         try {
             // Cancel any active responses
             this.interrupt();
-            
+
             // Clear audio buffers
             this.clearAudio();
-            
+
             // Wait for cleanup to complete
             await new Promise(resolve => setTimeout(resolve, 100));
-            
+
             console.log('🗑️ Conversation state cleared for voice change');
         } catch (error) {
             console.log('⚠️ Error clearing conversation:', error.message);
@@ -472,7 +500,7 @@ class RealtimeVoiceAssistant {
         };
 
         this.send(messageEvent);
-        
+
         // Request response
         const responseCreate = {
             type: 'response.create',
@@ -517,76 +545,76 @@ class RealtimeVoiceAssistant {
         this.updateSession();
     }
 
-        // Change voice
-        async setVoice(voice) {
-            const validVoices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
-            if (!validVoices.includes(voice)) {
-                console.error('Invalid voice. Valid options:', validVoices);
-                return false;
-            }
-
-            if (this.sessionConfig.voice === voice) {
-                console.log(`Voice is already set to ${voice}`);
-                return true;
-            }
-
-            console.log(`🎙️ Changing voice from ${this.sessionConfig.voice} to ${voice}`);
-            
-            // Always clear audio state first to avoid conflicts
-            console.log('🧹 Preparing conversation for voice change...');
-            this.interrupt();      // Cancel any active response
-            this.clearAudio();     // Clear input audio buffer
-            
-            // Wait for audio clearing to complete
-            await new Promise(resolve => setTimeout(resolve, 150));
-            
-            // Method 1: Try direct session update
-            try {
-                this.sessionConfig.voice = voice;
-                this.updateSession();
-                console.log(`✅ Voice successfully changed to ${voice}`);
-                return true;
-                
-            } catch (error) {
-                console.log(`⚠️ Session update failed (${error.message}), trying reconnection...`);
-                
-                // Method 2: Full reconnection to clear conversation state
-                try {
-                    await this.reconnectWithNewVoice(voice);
-                    console.log(`✅ Voice successfully changed to ${voice} (via reconnection)`);
-                    return true;
-                    
-                } catch (reconnectError) {
-                    console.error('❌ Voice change failed completely:', reconnectError.message);
-                    // Even if we get an error, the voice might have actually changed
-                    // The error often occurs due to conversation state, not the voice change itself
-                    console.log('ℹ️ Voice change may have succeeded despite the error');
-                    return true; // Return success since voice changes often work despite API errors
-                }
-            }
+    // Change voice
+    async setVoice(voice) {
+        const validVoices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
+        if (!validVoices.includes(voice)) {
+            console.error('Invalid voice. Valid options:', validVoices);
+            return false;
         }
 
-        // Helper method to reconnect with new voice
-        async reconnectWithNewVoice(voice) {
-            const wasConnected = this.isConnected;
-            
-            if (wasConnected) {
-                // Disconnect current session
-                await this.disconnect();
-                
-                // Wait for clean disconnect
-                await new Promise(resolve => setTimeout(resolve, 200));
-            }
-            
-            // Update voice in config
+        if (this.sessionConfig.voice === voice) {
+            console.log(`Voice is already set to ${voice}`);
+            return true;
+        }
+
+        console.log(`🎙️ Changing voice from ${this.sessionConfig.voice} to ${voice}`);
+
+        // Always clear audio state first to avoid conflicts
+        console.log('🧹 Preparing conversation for voice change...');
+        this.interrupt();      // Cancel any active response
+        this.clearAudio();     // Clear input audio buffer
+
+        // Wait for audio clearing to complete
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        // Method 1: Try direct session update
+        try {
             this.sessionConfig.voice = voice;
-            
-            // Reconnect with new voice
-            if (wasConnected) {
-                await this.connect();
-                console.log(`✅ Reconnected with voice: ${voice}`);
+            this.updateSession();
+            console.log(`✅ Voice successfully changed to ${voice}`);
+            return true;
+
+        } catch (error) {
+            console.log(`⚠️ Session update failed (${error.message}), trying reconnection...`);
+
+            // Method 2: Full reconnection to clear conversation state
+            try {
+                await this.reconnectWithNewVoice(voice);
+                console.log(`✅ Voice successfully changed to ${voice} (via reconnection)`);
+                return true;
+
+            } catch (reconnectError) {
+                console.error('❌ Voice change failed completely:', reconnectError.message);
+                // Even if we get an error, the voice might have actually changed
+                // The error often occurs due to conversation state, not the voice change itself
+                console.log('ℹ️ Voice change may have succeeded despite the error');
+                return true; // Return success since voice changes often work despite API errors
             }
-        }    // Get connection status
+        }
+    }
+
+    // Helper method to reconnect with new voice
+    async reconnectWithNewVoice(voice) {
+        const wasConnected = this.isConnected;
+
+        if (wasConnected) {
+            // Disconnect current session
+            await this.disconnect();
+
+            // Wait for clean disconnect
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        // Update voice in config
+        this.sessionConfig.voice = voice;
+
+        // Reconnect with new voice
+        if (wasConnected) {
+            await this.connect();
+            console.log(`✅ Reconnected with voice: ${voice}`);
+        }
+    }    // Get connection status
     getStatus() {
         return {
             connected: this.isConnected,
@@ -605,14 +633,14 @@ class RealtimeVoiceAssistant {
                     timestamp: new Date().toISOString()
                 };
             }
-            
+
             const { phoneNumber, amount } = this.pendingPurchase;
-            
+
             if (confirmed) {
                 console.log(`Confirming pulsa purchase: ${phoneNumber}, ${amount}`);
                 const result = await this.pulsaService.purchasePulsa(phoneNumber, amount, true);
                 this.pendingPurchase = null;
-                
+
                 if (result.success) {
                     return {
                         type: 'text',
@@ -635,7 +663,7 @@ class RealtimeVoiceAssistant {
                     timestamp: new Date().toISOString()
                 };
             }
-            
+
         } catch (error) {
             console.error('Error confirming pulsa purchase:', error);
             this.pendingPurchase = null;

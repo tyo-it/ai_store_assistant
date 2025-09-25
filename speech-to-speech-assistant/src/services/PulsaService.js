@@ -36,14 +36,14 @@ class PulsaService {
         }
     }
 
-    async processPulsaCommand(speechText, sessionId) {
+    async processPulsaCommand(phoneNumber, amount, userConfirmation, provider) {
         if (!this.isConnected) {
             throw new Error('Pulsa service is not connected');
         }
 
         try {
             // Use the MCP server to process the speech command
-            const result = await this.mcpClient.processSpeechCommand(speechText, sessionId);
+            const result = await this.mcpClient.purchasePulsa(phoneNumber, amount, userConfirmation, provider);
             return this.formatResponse(result);
         } catch (error) {
             console.error('Error processing pulsa command:', error);
@@ -144,26 +144,26 @@ class PulsaService {
         ];
 
         const lowerText = speechText.toLowerCase();
-        
+
         // Check for keywords
         const hasKeywords = pulsaKeywords.some(keyword => lowerText.includes(keyword));
-        
+
         // Check for intent patterns
         const intentPatterns = [
             /(?:beli|beliakan|purchase|topup|top\s*up|isi(?:\s*ulang)?)\s*(?:pulsa|kredit|saldo)/gi,
             /(?:mau|ingin|minta|pengen)\s*(?:beli|isi|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
             /(?:tolong|please|mohon)\s*(?:belikan|isi(?:\s*ulang)?|topup|top\s*up)\s*(?:pulsa|kredit)/gi,
         ];
-        
+
         const hasIntent = intentPatterns.some(pattern => pattern.test(lowerText));
-        
+
         return hasKeywords || hasIntent;
     }
 
     // Extract phone number and amount from speech text
     extractPulsaInfo(speechText) {
         const text = speechText.toLowerCase();
-        
+
         // Enhanced phone number patterns
         const phonePatterns = [
             /(?:nomor|nomer|hp|handphone|telepon)\s*(?:nya)?\s*(?:adalah|yaitu)?\s*((?:\+62|62|0)?8\d{8,12})/gi,
@@ -187,7 +187,7 @@ class PulsaService {
             const match = pattern.exec(text);
             if (match) {
                 phoneNumber = match[1].replace(/[\s-]/g, '');
-                
+
                 // Normalize phone number format
                 if (phoneNumber.startsWith('0')) {
                     phoneNumber = phoneNumber; // Keep original format for Indonesian numbers
@@ -207,7 +207,7 @@ class PulsaService {
             if (match) {
                 let value = parseInt(match[1]);
                 const unit = match[2] ? match[2].toLowerCase() : 'ribu';
-                
+
                 if (unit === 'ribu' || unit === 'rb' || unit === 'k') {
                     amount = value * 1000;
                 } else if (unit === '000') {
@@ -218,7 +218,7 @@ class PulsaService {
                     // If no unit specified but pattern matched, assume thousands
                     amount = value * 1000;
                 }
-                
+
                 // Validate reasonable pulsa amounts
                 if (amount >= 1000 && amount <= 1000000) {
                     break;

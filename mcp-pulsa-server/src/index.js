@@ -23,7 +23,7 @@ class PulsaMCPServer {
     console.log('🚀 [MCP SERVER] Environment variables:');
     console.log('   - FAZZAGN_BASE_URL:', process.env.FAZZAGN_BASE_URL || 'NOT SET');
     console.log('   - FAZZAGN_USER_ID:', process.env.FAZZAGN_USER_ID || 'NOT SET');
-    
+
     this.server = new Server(
       {
         name: "pulsa-purchase-server",
@@ -46,10 +46,10 @@ class PulsaMCPServer {
     console.log('🔧 [MCP SERVER] Initializing validator and speech processor...');
     this.validator = new PulsaValidator();
     this.speechProcessor = new SpeechProcessor();
-    
+
     console.log('🔧 [MCP SERVER] Setting up request handlers...');
     this.setupHandlers();
-    
+
     console.log('✅ [MCP SERVER] Pulsa MCP Server initialization complete!');
   }
 
@@ -194,7 +194,7 @@ class PulsaMCPServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         const { name, arguments: args } = request.params;
-        
+
         console.log(`🔧 [MCP SERVER] Tool called: ${name}`);
         console.log(`📥 [MCP SERVER] Tool arguments:`, JSON.stringify(args, null, 2));
 
@@ -202,27 +202,27 @@ class PulsaMCPServer {
           case "check_pulsa_availability":
             console.log(`🔍 [MCP SERVER] Executing check_pulsa_availability...`);
             return await this.checkPulsaAvailability(args);
-          
+
           case "purchase_pulsa":
             console.log(`💳 [MCP SERVER] Executing purchase_pulsa...`);
             return await this.purchasePulsa(args);
-          
+
           case "validate_phone_number":
             console.log(`📱 [MCP SERVER] Executing validate_phone_number...`);
             return await this.validatePhoneNumber(args);
-          
+
           case "process_speech_command":
             console.log(`🎤 [MCP SERVER] Executing process_speech_command...`);
             return await this.processSpeechCommand(args);
-          
+
           case "get_pulsa_prices":
             console.log(`💰 [MCP SERVER] Executing get_pulsa_prices...`);
             return await this.getPulsaPrices(args);
-          
+
           case "check_transaction_status":
             console.log(`📊 [MCP SERVER] Executing check_transaction_status...`);
             return await this.checkTransactionStatus(args);
-          
+
           default:
             console.error(`❌ [MCP SERVER] Unknown tool: ${name}`);
             throw new McpError(
@@ -242,9 +242,9 @@ class PulsaMCPServer {
 
   async checkPulsaAvailability(args) {
     const { phoneNumber, amount, provider } = args;
-    
+
     console.log(`🔍 [MCP SERVER] checkPulsaAvailability called with:`, { phoneNumber, amount, provider });
-    
+
     // Validate phone number
     const validation = this.validator.validatePhoneNumber(phoneNumber);
     if (!validation.valid) {
@@ -258,9 +258,9 @@ class PulsaMCPServer {
     }
 
     const detectedProvider = provider || validation.provider;
-    
+
     console.log(`📞 [MCP SERVER] Calling Fazzagn API checkPulsaAvailability with provider:`, detectedProvider);
-    
+
     try {
       const availability = await this.fazzagnAPI.checkPulsaAvailability({
         phoneNumber,
@@ -284,10 +284,10 @@ class PulsaMCPServer {
           }, null, 2)
         }]
       };
-      
+
       console.log(`📤 [MCP SERVER] Returning result:`, JSON.stringify(result, null, 2));
       return result;
-      
+
     } catch (error) {
       console.error(`❌ [MCP SERVER] Fazzagn API error:`, error.message);
       return {
@@ -300,10 +300,10 @@ class PulsaMCPServer {
   }
 
   async purchasePulsa(args) {
-    const { phoneNumber, amount, provider } = args;
-    
-    console.log(`💳 [MCP SERVER] purchasePulsa called with:`, { phoneNumber, amount, provider });
-    
+    const { phoneNumber, amount, provider, referenceNumber } = args;
+
+    console.log(`💳 [MCP SERVER] purchasePulsa called with:`, { phoneNumber, amount, provider, referenceNumber });
+
     // Validate phone number
     const validation = this.validator.validatePhoneNumber(phoneNumber);
     if (!validation.valid) {
@@ -322,14 +322,15 @@ class PulsaMCPServer {
       const transaction = await this.fazzagnAPI.purchasePulsa({
         phoneNumber,
         amount,
-        provider
+        provider,
+        referenceNumber
       });
 
       console.log(`✅ [MCP SERVER] Fazzagn API purchase response:`, transaction);
 
       // Generate purchase ID if not provided by API
       const transactionId = transaction.transactionId || this.generatePurchaseId();
-      
+
       const result = {
         content: [{
           type: "text",
@@ -344,10 +345,10 @@ class PulsaMCPServer {
           }, null, 2)
         }]
       };
-      
+
       console.log(`📤 [MCP SERVER] Returning purchase result:`, JSON.stringify(result, null, 2));
       return result;
-      
+
     } catch (error) {
       console.error(`❌ [MCP SERVER] Fazzagn API purchase error:`, error.message);
       return {
@@ -362,7 +363,7 @@ class PulsaMCPServer {
   async validatePhoneNumber(args) {
     const { phoneNumber } = args;
     const validation = this.validator.validatePhoneNumber(phoneNumber);
-    
+
     return {
       content: [{
         type: "text",
@@ -373,10 +374,10 @@ class PulsaMCPServer {
 
   async processSpeechCommand(args) {
     const { speechText } = args;
-    
+
     try {
       const parsedCommand = this.speechProcessor.parsePulsaCommand(speechText);
-      
+
       if (!parsedCommand.valid) {
         return {
           content: [{
@@ -425,6 +426,7 @@ class PulsaMCPServer {
             price: availability.price,
             readyToPurchase: true,
             transactionId: this.generateTransactionId(),
+            referenceNumber: availability.referenceNumber,
             message: `Ready to purchase pulsa ${parsedCommand.amount} for ${parsedCommand.phoneNumber} (${validation.provider}). Price: ${availability.price}`
           }, null, 2)
         }]
@@ -441,10 +443,10 @@ class PulsaMCPServer {
 
   async getPulsaPrices(args) {
     const { provider } = args;
-    
+
     try {
       const prices = await this.fazzagnAPI.getPulsaPrices(provider);
-      
+
       return {
         content: [{
           type: "text",
@@ -466,10 +468,10 @@ class PulsaMCPServer {
 
   async checkTransactionStatus(args) {
     const { uniqueId } = args;
-    
+
     try {
       const status = await this.fazzagnAPI.getTransactionStatus(uniqueId);
-      
+
       return {
         content: [{
           type: "text",
@@ -497,10 +499,10 @@ class PulsaMCPServer {
   async run() {
     const mode = process.env.MCP_TRANSPORT_MODE || 'stdio';
     const port = process.env.MCP_PORT || 3001;
-    
+
     console.log('🌐 [MCP SERVER] Starting MCP server transport...');
     console.log('🌐 [MCP SERVER] Transport mode:', mode);
-    
+
     if (mode === 'http' || mode === 'websocket') {
       // HTTP/WebSocket transport for external connections
       console.log(`🌐 [MCP SERVER] Starting HTTP server on port ${port}...`);
@@ -511,21 +513,21 @@ class PulsaMCPServer {
       await this.server.connect(transport);
       console.error("✅ [MCP SERVER] Pulsa MCP server running on stdio");
     }
-    
+
     console.error("🎯 [MCP SERVER] Server ready to receive tool calls");
   }
 
   async startHttpServer(port) {
     const app = express();
-    
+
     app.use(cors());
     app.use(express.json());
-    
+
     // Health check endpoint
     app.get('/health', (req, res) => {
       res.json({ status: 'healthy', server: 'mcp-pulsa-server' });
     });
-    
+
     // MCP tools endpoint
     app.get('/tools', async (req, res) => {
       try {
@@ -535,7 +537,7 @@ class PulsaMCPServer {
             description: "Check pulsa/mobile credit availability for a phone number and amount"
           },
           {
-            name: "purchase_pulsa", 
+            name: "purchase_pulsa",
             description: "Purchase pulsa/mobile credit for a phone number"
           },
           {
@@ -552,16 +554,16 @@ class PulsaMCPServer {
         res.status(500).json({ error: error.message });
       }
     });
-    
+
     // MCP tool call endpoint
     app.post('/tools/:toolName', async (req, res) => {
       try {
         const { toolName } = req.params;
         const args = req.body;
-        
+
         console.log(`🔧 [MCP SERVER] HTTP Tool called: ${toolName}`);
         console.log(`📥 [MCP SERVER] HTTP Tool arguments:`, JSON.stringify(args, null, 2));
-        
+
         let result;
         switch (toolName) {
           case 'check_pulsa_availability':
@@ -579,20 +581,20 @@ class PulsaMCPServer {
           default:
             return res.status(404).json({ error: `Unknown tool: ${toolName}` });
         }
-        
+
         console.log(`📤 [MCP SERVER] HTTP Tool result:`, JSON.stringify(result, null, 2));
         res.json(result);
-        
+
       } catch (error) {
         console.error(`❌ [MCP SERVER] HTTP Tool error:`, error);
         res.status(500).json({ error: error.message });
       }
     });
-    
+
     const server = app.listen(port, () => {
       console.log(`✅ [MCP SERVER] HTTP server running on http://localhost:${port}`);
     });
-    
+
     return server;
   }
 }
