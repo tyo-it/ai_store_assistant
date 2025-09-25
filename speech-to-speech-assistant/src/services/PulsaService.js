@@ -43,6 +43,7 @@ class PulsaService {
 
         try {
             // Use the MCP server to process the speech command
+            console.log('Processing pulsa command:', speechText, sessionId);
             const result = await this.mcpClient.processSpeechCommand(speechText, sessionId);
             return this.formatResponse(result);
         } catch (error) {

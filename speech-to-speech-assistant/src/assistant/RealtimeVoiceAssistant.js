@@ -312,10 +312,8 @@ class RealtimeVoiceAssistant {
                     break;
                 case 'process_pulsa_request':
                     result = await this.pulsaService.processPulsaCommand(
-                        functionArgs.phoneNumber,
-                        functionArgs.amount,
-                        functionArgs.userConfirmation,
-                        functionArgs.provider
+                        functionArgs.speechText,
+                        this.sessionId
                     );
 
                     // If this is a pulsa request that's ready to purchase, proceed automatically
@@ -334,22 +332,6 @@ class RealtimeVoiceAssistant {
                             result.raw.provider,
                             result.raw.referenceNumber
                         );
-                        this.client_ws?.emit('pending-purchase', result.raw);
-                    }
-                    break;
-                case 'process_pulsa_request':
-                    result = await this.pulsaService.processPulsaCommand(
-                        functionArgs.speechText,
-                        this.sessionId
-                    );
-
-                    // If this is a pulsa request that's ready to purchase, proceed automatically
-                    if (result.raw && result.raw.understood && result.raw.readyToPurchase) {
-                        this.pendingPurchase = {
-                            phoneNumber: result.raw.phoneNumber,
-                            amount: result.raw.amount,
-                            provider: result.raw.provider
-                        };
                         this.client_ws?.emit('pending-purchase', result.raw);
                     }
                     break;
