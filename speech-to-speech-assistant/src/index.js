@@ -53,7 +53,7 @@ class AIAssistantApp {
                 const { message } = req.body;
                 // For REST API, we'll need a separate session
                 // In practice, use WebSocket for realtime features
-                res.json({ 
+                res.json({
                     response: 'Please use the WebSocket connection for real-time voice chat',
                     suggestion: 'Use the web interface for full voice capabilities'
                 });
@@ -62,6 +62,93 @@ class AIAssistantApp {
                 res.status(500).json({ error: 'Failed to process message' });
             }
         });
+
+        // Payment page route
+        this.app.get('/payment/:unique_id', (req, res) => {
+            res.sendFile('payment.html', { root: './public' });
+        });
+
+        // Payment API endpoint
+        this.app.post('/api/v1/transactions/recharges/pay', async (req, res) => {
+            try {
+                const { unique_id } = req.body;
+
+                if (!unique_id) {
+                    return res.status(400).json({
+                        error: 'Missing required field: unique_id',
+                        message: 'unique_id is required for payment processing'
+                    });
+                }
+
+                console.log(`💳 Processing payment for unique_id: ${unique_id}`);
+
+                // Here you would integrate with your actual payment microservice
+                // For now, we'll simulate the API call
+                const paymentResult = await this.processPayment(unique_id);
+
+                if (paymentResult.success) {
+                    console.log(`✅ Payment successful for unique_id: ${unique_id}`);
+                    res.json({
+                        success: true,
+                        message: 'Payment processed successfully',
+                        unique_id: unique_id,
+                        transaction_id: paymentResult.transaction_id,
+                        timestamp: new Date().toISOString()
+                    });
+                } else {
+                    console.log(`❌ Payment failed for unique_id: ${unique_id}`);
+                    res.status(400).json({
+                        success: false,
+                        error: 'Payment processing failed',
+                        message: paymentResult.message || 'Payment could not be processed',
+                        unique_id: unique_id
+                    });
+                }
+            } catch (error) {
+                console.error('Payment API error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: 'Internal server error',
+                    message: 'An error occurred while processing payment'
+                });
+            }
+        });
+    }
+
+    async processPayment(unique_id) {
+        // Simulate payment processing
+        // In a real application, you would:
+        // 1. Validate the unique_id
+        // 2. Call your actual payment microservice
+        // 3. Handle the response from the microservice
+
+        try {
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Simulate random success/failure for demo purposes
+            // In production, remove this and implement actual payment logic
+            const isSuccess = Math.random() > 0.1; // 90% success rate for demo
+
+            if (isSuccess) {
+                return {
+                    success: true,
+                    transaction_id: `txn_${Date.now()}_${unique_id}`,
+                    message: 'Payment processed successfully'
+                };
+            } else {
+                return {
+                    success: false,
+                    message: 'Payment declined by payment processor'
+                };
+            }
+        } catch (error) {
+            console.error('Payment processing error:', error);
+            return {
+                success: false,
+                message: 'Payment service temporarily unavailable'
+            };
+        }
     }
 
     setupSocketHandlers() {
