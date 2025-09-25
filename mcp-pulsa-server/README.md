@@ -29,10 +29,8 @@ Create a `.env` file with the following variables:
 
 ```env
 # Fazzagn API Configuration
-FAZZAGN_API_KEY=your_fazzagn_api_key_here
-FAZZAGN_BASE_URL=https://api.fazzagn.com
-FAZZAGN_USERNAME=your_fazzagn_username
-FAZZAGN_PIN=your_fazzagn_pin
+FAZZAGN_BASE_URL=http://localhost:3000
+FAZZAGN_USER_ID=1
 
 # MCP Server Configuration
 MCP_SERVER_PORT=3001
@@ -92,6 +90,12 @@ Get available pulsa denominations and prices for a provider.
 **Parameters:**
 - `provider` (string): Mobile provider
 
+### 6. `check_transaction_status`
+Check the status of a pulsa transaction using unique_id.
+
+**Parameters:**
+- `uniqueId` (string): Unique transaction ID from purchase response
+
 ## Speech Commands
 
 The system understands Indonesian voice commands such as:
@@ -113,10 +117,17 @@ The system understands Indonesian voice commands such as:
 
 ### Fazzagn API Endpoints Used
 
-1. **Check Availability**: `POST /pulsa/check`
-2. **Purchase Pulsa**: `POST /pulsa/topup`
-3. **Get Prices**: `GET /pulsa/prices/{provider}`
-4. **Check Balance**: `GET /balance`
+The integration follows the complete 4-step flow:
+
+1. **Inquire**: `POST /api/v1/transactions/recharges/inquire` - Get reference number
+2. **Order**: `POST /api/v1/transactions/recharges/order` - Create contract with reference_number
+3. **Pay**: `POST /api/v1/transactions/recharges/pay` - Process payment with unique_id
+4. **Status**: `GET /api/v1/transactions/recharges/{unique_id}/status` - Check transaction status
+
+#### Usage Flow:
+1. `checkPulsaAvailability()` → calls **inquire** → returns reference_number
+2. `purchasePulsa()` → calls **order** → **pay** → **status** → returns complete transaction
+3. `getTransactionStatus()` → calls **status** → returns current transaction status
 
 ### Fallback Mode
 
