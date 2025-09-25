@@ -1,10 +1,11 @@
-const OpenAI = require('openai');
+const { Configuration, OpenAIApi } = require('openai');
 
 class FallbackVoiceAssistant {
     constructor() {
-        this.openai = new OpenAI({
+        const configuration = new Configuration({
             apiKey: process.env.OPENAI_API_KEY
         });
+        this.openai = new OpenAIApi(configuration);
         
         this.conversationHistory = [];
         this.isConnected = false;
@@ -14,8 +15,8 @@ class FallbackVoiceAssistant {
     async connect() {
         // Test OpenAI connection with a simple request
         try {
-            await this.openai.chat.completions.create({
-                model: process.env.FALLBACK_MODEL || 'gpt-4o-mini',
+            await this.openai.createChatCompletion({
+                model: process.env.FALLBACK_MODEL || 'gpt-3.5-turbo',
                 messages: [{ role: 'user', content: 'Hello' }],
                 max_tokens: 5
             });
@@ -67,8 +68,8 @@ class FallbackVoiceAssistant {
             console.log('💬 Processing text message:', text);
 
             // Generate AI response using OpenAI Chat Completions
-            const completion = await this.openai.chat.completions.create({
-                model: process.env.FALLBACK_MODEL || 'gpt-4o-mini',
+            const completion = await this.openai.createChatCompletion({
+                model: process.env.FALLBACK_MODEL || 'gpt-3.5-turbo',
                 messages: [
                     {
                         role: 'system',
@@ -80,7 +81,7 @@ class FallbackVoiceAssistant {
                 temperature: 0.7
             });
 
-            const responseText = completion.choices[0].message.content;
+            const responseText = completion.data.choices[0].message.content;
 
             // Add AI response to conversation history
             this.conversationHistory.push({
@@ -95,7 +96,7 @@ class FallbackVoiceAssistant {
             this.emit('response.done', { 
                 response: { 
                     text: responseText,
-                    usage: completion.usage 
+                    usage: completion.data.usage 
                 } 
             });
 

@@ -4,7 +4,7 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const RealtimeVoiceAssistant = require('./assistant/RealtimeVoiceAssistant');
 const FallbackVoiceAssistant = require('./assistant/FallbackVoiceAssistant');
-const PulsaService = require('./services/PulsaService');
+const SimplePulsaService = require('./services/SimplePulsaService');
 require('dotenv').config();
 
 class AIAssistantApp {
@@ -20,7 +20,8 @@ class AIAssistantApp {
         this.port = process.env.PORT || 3000;
         this.realtimeAssistant = new RealtimeVoiceAssistant();
         this.clientSessions = new Map(); // Track client sessions
-        this.pulsaService = new PulsaService(); // Add Pulsa Service
+        // Use simple pulsa service for older Node.js compatibility
+        this.pulsaService = new SimplePulsaService();
         
         this.setupMiddleware();
         this.setupRoutes();
@@ -65,13 +66,36 @@ class AIAssistantApp {
                 res.status(500).json({ error: 'Failed to process message' });
             }
         });
+
+        // Pulsa-specific REST endpoint for testing
+        this.app.post('/pulsa', async (req, res) => {
+            try {
+                const { action, speechText } = req.body;
+                
+                if (action === 'process_speech' && speechText) {
+                    const sessionId = 'rest_' + Date.now();
+                    const result = await this.pulsaService.processSpeechForPulsa(speechText, sessionId);
+                    res.json(result);
+                } else {
+                    res.status(400).json({ 
+                        error: 'Invalid action or missing parameters',
+                        example: { action: 'process_speech', speechText: 'beli pulsa 10 ribu untuk 08123456789' }
+                    });
+                }
+            } catch (error) {
+                console.error('Pulsa REST error:', error);
+                res.status(500).json({ error: 'Failed to process pulsa request' });
+            }
+        });
     }
 
     async initializePulsaService() {
         try {
-            await this.pulsaService.initialize();
-            this.pulsaService.startCleanupTimer();
-            console.log('✅ Pulsa Service initialized successfully');
+            console.log('✅ Simple Pulsa Service initialized successfully');
+            // Start cleanup timer
+            setInterval(() => {
+                this.pulsaService.cleanupExpiredSessions();
+            }, 60000); // Check every minute
         } catch (error) {
             console.error('❌ Failed to initialize Pulsa Service:', error);
             console.log('⚠️ Pulsa functionality will not be available');
@@ -86,34 +110,21 @@ class AIAssistantApp {
             let clientAssistant;
             let usingFallback = false;
 
-            try {
-                // Try Realtime API first
-                clientAssistant = new RealtimeVoiceAssistant();
-                await clientAssistant.connect();
-                console.log('✅ Using OpenAI Realtime API');
-                socket.emit('status', { 
-                    connected: true, 
-                    message: 'Connected to OpenAI Realtime API',
-                    mode: 'realtime',
-                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
-                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
-                });
-            } catch (realtimeError) {
-                console.log('⚠️ Realtime API not available, using fallback mode');
-                
-                // Use fallback assistant
-                clientAssistant = new FallbackVoiceAssistant();
-                await clientAssistant.connect();
-                usingFallback = true;
-                console.log('✅ Using OpenAI Chat API (fallback mode)');
-                socket.emit('status', { 
-                    connected: true, 
-                    message: 'Connected to OpenAI Chat API (Fallback Mode)',
-                    mode: 'fallback',
-                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
-                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
-                });
-            }
+            // For compatibility with old Node.js, use fallback mode only
+            console.log('🔄 Using Fallback mode (compatible with older Node.js)');
+            
+            // Use fallback assistant
+            clientAssistant = new FallbackVoiceAssistant();
+            await clientAssistant.connect();
+            usingFallback = true;
+            console.log('✅ Using OpenAI Chat API (fallback mode)');
+            socket.emit('status', { 
+                connected: true, 
+                message: 'Connected to OpenAI Chat API (Fallback Mode)',
+                mode: 'fallback',
+                speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
+                speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
+            });
 
             this.clientSessions.set(socket.id, { assistant: clientAssistant, usingFallback });
 
@@ -146,8 +157,45 @@ class AIAssistantApp {
             socket.on('text-message', async (message) => {
                 const clientSession = this.clientSessions.get(socket.id);
                 
+                // Check if this is a confirmation response for active pulsa session
+                if (this.pulsaService && this.pulsaService.isConnected) {
+                    const confirmationCheck = this.pulsaService.isConfirmationResponse(message, socket.id);
+                    
+                    if (confirmationCheck.isConfirmation) {
+                        try {
+                            console.log(`💳 Processing pulsa confirmation from ${socket.id}: ${confirmationCheck.confirmed}`);
+                            const result = await this.pulsaService.handleUserConfirmation(socket.id, confirmationCheck.confirmed);
+                            
+                            if (result.type === 'success') {
+                                socket.emit('pulsa-success', result);
+                                socket.emit('text-response', {
+                                    type: 'text-complete',
+                                    text: result.message
+                                });
+                            } else if (result.type === 'cancelled') {
+                                socket.emit('pulsa-cancelled', result);
+                                socket.emit('text-response', {
+                                    type: 'text-complete',
+                                    text: result.message
+                                });
+                            } else if (result.type === 'error') {
+                                socket.emit('pulsa-error', result);
+                                socket.emit('text-response', {
+                                    type: 'text-complete',
+                                    text: result.message
+                                });
+                            }
+                            return; // Don't process with regular assistant
+                        } catch (error) {
+                            console.error('Pulsa confirmation error:', error);
+                            socket.emit('error', 'Failed to process pulsa confirmation: ' + error.message);
+                            return;
+                        }
+                    }
+                }
+                
                 // Check if this is a pulsa-related request
-                if (this.pulsaService.isConnected && this.pulsaService.isPulsaIntent(message)) {
+                if (this.pulsaService && this.pulsaService.isConnected && this.pulsaService.isPulsaIntent(message)) {
                     try {
                         console.log(`💳 Processing pulsa request from ${socket.id}: ${message}`);
                         const result = await this.pulsaService.processSpeechForPulsa(message, socket.id);

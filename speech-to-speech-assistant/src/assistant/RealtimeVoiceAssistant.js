@@ -134,7 +134,7 @@ class RealtimeVoiceAssistant {
                 break;
             
             case 'conversation.item.created':
-                console.log('💬 Conversation item created:', event.item?.type);
+                console.log('💬 Conversation item created:', event.item && event.item.type);
                 break;
             
             case 'response.created':
@@ -158,11 +158,11 @@ class RealtimeVoiceAssistant {
                 break;
             
             case 'response.output_item.added':
-                console.log('📄 Output item added:', event.item?.type);
+                console.log('📄 Output item added:', event.item && event.item.type);
                 break;
             
             case 'response.content_part.added':
-                console.log('📝 Content part added:', event.part?.type);
+                console.log('📝 Content part added:', event.part && event.part.type);
                 break;
             
             case 'response.audio_transcript.done':
