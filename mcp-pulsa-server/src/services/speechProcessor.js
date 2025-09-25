@@ -19,16 +19,28 @@ class SpeechProcessor {
         /(?:pulsa|kredit|saldo)\s*(?:sebesar|senilai|nominal)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?)/gi,
         /(?:isi|top\s*up|topup|ulang)\s*(?:pulsa)?\s*(?:sebesar|senilai|nominal)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?)/gi,
         /(?:beli|beliakan|purchase)\s*(?:pulsa)?\s*(?:sebesar|senilai|nominal)?\s*(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:\.000)?)/gi,
+        // Match amount after value indicators (senilai, sebesar, nominal, etc.)
+        /(?:senilai|sebesar|nominal|sejumlah)\s*(?:rp\.?\s*)?(\d{1,6})/gi,
         // Match standalone numbers that could be amounts
         /(?:^|\s)(\d{1,3}(?:\.\d{3})*(?:\.000)?)(?:\s|$)/gi,
       ],
 
       // Intent detection patterns - enhanced for variations
       intent: [
+        // Traditional patterns with explicit pulsa/kredit/saldo keywords
         /(?:beli|belikan|purchase|topup|top\s*up|isi(?:\s*ulang)?|lanjut)\s*(?:pulsa|kredit|saldo)/gi,
         /(?:mau|ingin|minta|pengen)\s*(?:beli|isi|topup|top\s*up|lanjut)\s*(?:pulsa|kredit)/gi,
         /(?:tolong|please|mohon)\s*(?:belikan|isi(?:\s*ulang)?|topup|top\s*up|lanjut)\s*(?:pulsa|kredit)/gi,
         /(?:pulsa|kredit|saldo).*(?:beli|isi|topup|top\s*up|lanjut)/gi,
+
+        // Patterns for action words followed by phone numbers (implicit pulsa context)
+        /(?:beli|belikan|purchase|topup|top\s*up|isi(?:\s*ulang)?|lanjut)\s*(?:nomor|nomer|hp|handphone|telepon)?\s*(?:\+62|62|0)?8\d{8,12}/gi,
+
+        // Patterns for amount-related phrases (senilai, sebesar, etc.)
+        /(?:topup|top\s*up|isi(?:\s*ulang)?|beli|belikan)\s*.*(?:senilai|sebesar|nominal|sejumlah|senilai)/gi,
+
+        // Patterns matching Indonesian mobile payment context
+        /(?:senilai|sebesar|nominal|sejumlah)\s*(?:\d+|lima|sepuluh|dua\s*puluh|lima\s*belas|tiga\s*puluh|lima\s*puluh|seratus)\s*(?:ribu|rb|000)/gi,
       ],
 
       // Provider detection patterns (optional, can be inferred from phone number)
@@ -146,6 +158,7 @@ class SpeechProcessor {
     console.log('📞 [SPEECH PROCESSOR] Extracting phone number from:', text);
 
     for (const pattern of this.patterns.phoneNumber) {
+      pattern.lastIndex = 0; // Reset regex global flag FIRST
       const match = pattern.exec(text);
       if (match) {
         let phoneNumber = match[1];
@@ -162,7 +175,6 @@ class SpeechProcessor {
           console.log(`   ❌ Invalid phone format: ${phoneNumber}`);
         }
       }
-      pattern.lastIndex = 0; // Reset regex global flag
     }
 
     console.log('   ❌ No phone number found');
@@ -195,6 +207,7 @@ class SpeechProcessor {
 
     // Then check for numeric patterns
     for (const pattern of this.patterns.amount) {
+      pattern.lastIndex = 0; // Reset regex global flag FIRST
       const match = pattern.exec(text);
       if (match) {
         let amountStr = match[1];
@@ -221,7 +234,6 @@ class SpeechProcessor {
           console.log(`   ❌ Invalid amount: ${amount} (outside valid range)`);
         }
       }
-      pattern.lastIndex = 0; // Reset regex global flag
     }
 
     console.log('   ❌ No amount found');
