@@ -84,6 +84,58 @@ describe('Speech Processor', () => {
       expect(result.valid).toBe(false);
       expect(result.error).toContain('No pulsa purchase intent detected');
     });
+
+    test('should handle consecutive calls with same input consistently', () => {
+      const inputText = 'Beli pulsa 10 ribu untuk nomor 082112345678';
+
+      // Call the parser multiple times with the same input
+      const result1 = speechProcessor.parsePulsaCommand(inputText);
+      const result2 = speechProcessor.parsePulsaCommand(inputText);
+      const result3 = speechProcessor.parsePulsaCommand(inputText);
+      const result4 = speechProcessor.parsePulsaCommand(inputText);
+      const result5 = speechProcessor.parsePulsaCommand(inputText);
+
+      // All results should be identical
+      expect(result1.valid).toBe(true);
+      expect(result2.valid).toBe(true);
+      expect(result3.valid).toBe(true);
+      expect(result4.valid).toBe(true);
+      expect(result5.valid).toBe(true);
+
+      // Verify extracted data is consistent
+      const expectedPhoneNumber = '082112345678';
+      const expectedAmount = 10000;
+
+      expect(result1.phoneNumber).toBe(expectedPhoneNumber);
+      expect(result2.phoneNumber).toBe(expectedPhoneNumber);
+      expect(result3.phoneNumber).toBe(expectedPhoneNumber);
+      expect(result4.phoneNumber).toBe(expectedPhoneNumber);
+      expect(result5.phoneNumber).toBe(expectedPhoneNumber);
+
+      expect(result1.amount).toBe(expectedAmount);
+      expect(result2.amount).toBe(expectedAmount);
+      expect(result3.amount).toBe(expectedAmount);
+      expect(result4.amount).toBe(expectedAmount);
+      expect(result5.amount).toBe(expectedAmount);
+    });
+
+    test('should detect intent consistently across calls', () => {
+      const inputText = 'beli pulsa 10 ribu untuk nomor 082112345678';
+
+      // Test just the intent detection method multiple times
+      const intent1 = speechProcessor.detectPulsaIntent(inputText);
+      const intent2 = speechProcessor.detectPulsaIntent(inputText);
+      const intent3 = speechProcessor.detectPulsaIntent(inputText);
+      const intent4 = speechProcessor.detectPulsaIntent(inputText);
+      const intent5 = speechProcessor.detectPulsaIntent(inputText);
+
+      // All should return true consistently
+      expect(intent1).toBe(true);
+      expect(intent2).toBe(true);
+      expect(intent3).toBe(true);
+      expect(intent4).toBe(true);
+      expect(intent5).toBe(true);
+    });
   });
 
   describe('Response Generation', () => {

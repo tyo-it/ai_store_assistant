@@ -129,31 +129,53 @@ class SpeechProcessor {
 
   detectPulsaIntent(text) {
     // return true; // Always true for broader matching
-    return this.patterns.intent.some(pattern => pattern.test(text));
+    console.log('🔍 [SPEECH PROCESSOR] Detecting pulsa intent for:', text);
+
+    const hasIntent = this.patterns.intent.some(pattern => {
+      const result = pattern.test(text);
+      console.log(`   Pattern: ${pattern} -> ${result ? '✅ MATCH' : '❌ NO MATCH'}`);
+      pattern.lastIndex = 0; // Reset regex global flag to prevent state persistence
+      return result;
+    });
+
+    console.log('🎯 [SPEECH PROCESSOR] Overall intent detection:', hasIntent ? '✅ DETECTED' : '❌ NOT DETECTED');
+    return hasIntent;
   }
 
   extractPhoneNumber(text) {
+    console.log('📞 [SPEECH PROCESSOR] Extracting phone number from:', text);
+
     for (const pattern of this.patterns.phoneNumber) {
       const match = pattern.exec(text);
       if (match) {
         let phoneNumber = match[1];
+        console.log(`   Phone pattern match: ${pattern} found "${phoneNumber}"`);
+
         // Clean and normalize the phone number
         phoneNumber = phoneNumber.replace(/\s+/g, '');
 
         // Validate basic format
         if (/^((\+62|62|0)?8\d{8,14})$/.test(phoneNumber)) {
+          console.log(`   ✅ Valid phone number: ${phoneNumber}`);
           return phoneNumber;
+        } else {
+          console.log(`   ❌ Invalid phone format: ${phoneNumber}`);
         }
       }
       pattern.lastIndex = 0; // Reset regex global flag
     }
+
+    console.log('   ❌ No phone number found');
     return null;
   }
 
   extractAmount(text) {
+    console.log('💰 [SPEECH PROCESSOR] Extracting amount from:', text);
+
     // First check for number words (exact matches)
     for (const [word, value] of Object.entries(this.numberWords)) {
       if (text.includes(word)) {
+        console.log(`   Number word match: "${word}" -> ${value}`);
         return value;
       }
     }
@@ -161,10 +183,13 @@ class SpeechProcessor {
     // Special handling for "X ribu" pattern (e.g., "25 ribu")
     const ribusPattern = /(\d{1,3})\s*ribu/gi;
     const ribusMatch = ribusPattern.exec(text);
+    ribusPattern.lastIndex = 0; // Reset regex global flag
     if (ribusMatch) {
       const number = parseInt(ribusMatch[1]);
       if (number > 0 && number <= 999) {
-        return number * 1000; // Convert to full amount
+        const amount = number * 1000;
+        console.log(`   Ribu pattern match: ${number} ribu -> ${amount}`);
+        return amount;
       }
     }
 
@@ -173,6 +198,7 @@ class SpeechProcessor {
       const match = pattern.exec(text);
       if (match) {
         let amountStr = match[1];
+        console.log(`   Amount pattern match: ${pattern} found "${amountStr}"`);
 
         // Handle different number formats
         if (amountStr.includes('.')) {
@@ -184,15 +210,21 @@ class SpeechProcessor {
 
         // Validate reasonable pulsa amounts
         if (amount >= 1000 && amount <= 1000000) {
+          console.log(`   ✅ Valid amount: ${amount}`);
           return amount;
         } else if (amount < 1000 && amount > 0) {
           // If amount is less than 1000, assume it's in thousands
-          return amount * 1000;
+          const adjustedAmount = amount * 1000;
+          console.log(`   ✅ Adjusted amount: ${amount} -> ${adjustedAmount}`);
+          return adjustedAmount;
+        } else {
+          console.log(`   ❌ Invalid amount: ${amount} (outside valid range)`);
         }
       }
       pattern.lastIndex = 0; // Reset regex global flag
     }
 
+    console.log('   ❌ No amount found');
     return null;
   }
 
