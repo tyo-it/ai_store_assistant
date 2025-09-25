@@ -172,6 +172,26 @@
       }
     }
 
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      padding: 0.5rem;
+      background: white;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      border-radius: 24px;
+      padding: 1.0rem;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+      max-width: 700px;
+      width: 95%;
+    }
+
     .interrupt-button {
       background: #6c757d;
       color: white;
@@ -190,6 +210,11 @@
     .interrupt-button:disabled {
       background: #adb5bd;
       cursor: not-allowed;
+    }
+    
+    .header p {
+      color: #666;
+      font-size: 0.6rem;
     }
 
     .settings {
@@ -215,6 +240,16 @@
     .voice-select:disabled {
       background: #f8f9fa;
       cursor: not-allowed;
+    }
+
+    .chat-container {
+      height: 350px;
+      overflow-y: auto;
+      border: 2px solid #e9ecef;
+      border-radius: 16px;
+      padding: 1.0rem;
+      margin-bottom: 1.5rem;
+      background: #f8f9fa;
     }
 
     .text-input {
@@ -355,6 +390,17 @@
       font-size: 0.9rem;
     }
 
+    
+
+    .text-input input {
+      flex: 1;
+      padding: 0.5rem 1.0rem;
+      border: 2px solid #e9ecef;
+      border-radius: 25px;
+      outline: none;
+      font-size: 1rem;
+    }
+
     /* Modal for custom stop dialog */
     .modal-overlay {
       position: fixed;
@@ -417,14 +463,27 @@
       gap: 0.75rem;
       margin-top: 0.5rem;
     }
+
+    .feature p {
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    /* Logo styling */
+    .logo {
+      display: flex;
+      margin: 0 auto;
+      max-width: 200px;
+      height: auto;
+    }
   </style>
 </head>
 
 <body>
   <div class="container">
+
     <div class="header">
-      <h1>FAZZRIE</h1>
-      <p>FAZZ Resourceful Intelligent Entity</p>
+      <img src="./assets/logo.png" alt="FAZZRIE logo" class="logo" />
       <div class="status-badge connecting" id="connectionStatus">
         Connecting...
       </div>
@@ -443,9 +502,9 @@
         <button class="voice-button" id="voiceButton" disabled>
           🗣️ Bicara
         </button>
-        <button class="interrupt-button" id="interruptButton" disabled>
+        <!-- <button class="interrupt-button" id="interruptButton" disabled>
           Berhenti
-        </button>
+        </button> -->
       </div>
     </div>
 
@@ -455,7 +514,8 @@
     </div>
 
     <br />
-    <div class="settings">
+
+    <!-- <div class="settings">
       <select class="voice-select" id="voiceSelect" disabled>
         <option value="alloy">Alloy</option>
         <option value="ash">Ash</option>
@@ -468,7 +528,7 @@
         <option value="marin">Marin</option>
         <option value="cedar">Cedar</option>
       </select>
-    </div>
+    </div> -->
 
     <!-- Pulsa Confirmation Buttons -->
     <div class="confirmation-buttons" id="confirmationButtons" style="display: none">
@@ -524,8 +584,8 @@
         initializeElements() {
           this.chatContainer = document.getElementById("chatContainer");
           this.voiceButton = document.getElementById("voiceButton");
-          this.interruptButton = document.getElementById("interruptButton");
-          this.voiceSelect = document.getElementById("voiceSelect");
+          // this.interruptButton = document.getElementById("interruptButton");
+          // this.voiceSelect = document.getElementById("voiceSelect");
           this.textInput = document.getElementById("textInput");
           this.sendButton = document.getElementById("sendButton");
           this.status = document.getElementById("status");
@@ -555,17 +615,17 @@
           });
 
           // Interrupt button
-          this.interruptButton.addEventListener("click", () =>
-            this.interrupt()
-          );
+          // this.interruptButton.addEventListener("click", () =>
+          //   this.interrupt()
+          // );
 
           // Voice selection
-          this.voiceSelect.addEventListener("change", (e) => {
-            // Interrupt any ongoing audio before changing voice
-            console.log(`🎙️ Changing voice to: ${e.target.value}`);
-            this.interrupt(); // Clear any playing audio on client side
-            this.socket.emit("change-voice", e.target.value);
-          });
+          // this.voiceSelect.addEventListener("change", (e) => {
+          //   // Interrupt any ongoing audio before changing voice
+          //   console.log(`🎙️ Changing voice to: ${e.target.value}`);
+          //   this.interrupt(); // Clear any playing audio on client side
+          //   this.socket.emit("change-voice", e.target.value);
+          // });
 
           // Text input
           this.sendButton.addEventListener("click", () =>
@@ -632,7 +692,7 @@
                   "Fallback Mode - Browser Speech"
                 );
                 this.updateStatus(
-                  `Ready! Using browser speech (${this.speechRate}x speed)`
+                  `Ready! Using browser speech`
                 );
               } else {
                 this.updateConnectionStatus(
@@ -640,7 +700,7 @@
                   "Connected"
                 );
                 this.updateStatus(
-                  `Ready! Realtime API (${this.speechRate}x speed)`
+                  `Ready!`
                 );
               }
 
@@ -1192,7 +1252,7 @@
 
             // Try to match the selected voice or use a default
             const voices = window.speechSynthesis.getVoices();
-            const selectedVoice = this.voiceSelect.value;
+            const selectedVoice = 'alloy';
 
             // Map OpenAI voice names to similar browser voices (Indonesian)
             const voiceMap = {
@@ -1314,16 +1374,16 @@
 
         enableControls() {
           this.voiceButton.disabled = false;
-          this.interruptButton.disabled = false;
-          this.voiceSelect.disabled = false;
+          // this.interruptButton.disabled = false;
+          // this.voiceSelect.disabled = false;
           this.textInput.disabled = false;
           this.sendButton.disabled = false;
         }
 
         disableControls() {
           this.voiceButton.disabled = true;
-          this.interruptButton.disabled = true;
-          this.voiceSelect.disabled = true;
+          // this.interruptButton.disabled = true;
+          // this.voiceSelect.disabled = true;
           this.textInput.disabled = true;
           this.sendButton.disabled = true;
         }
