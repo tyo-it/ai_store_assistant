@@ -1562,6 +1562,7 @@
 
           // Start polling immediately and then every 5 seconds
           const pollOnce = async () => {
+            console.log(`🔄 Polling attempt for unique_id: ${unique_id}`);
             const status = await this.checkTransactionStatus(unique_id);
 
             if (status === 'completed') {
@@ -1577,11 +1578,16 @@
 
             } else if (status) {
               console.log(`📊 Transaction status: ${status}, continuing to poll`);
+            } else {
+              console.log('⚠️ Status check returned null or empty, continuing to poll');
             }
 
             // Schedule next poll if still polling
-            if (this.pollingInterval !== null && this.currentUniqueId === unique_id) {
+            if (this.currentUniqueId === unique_id) {
+              console.log(`⏰ Scheduling next poll in 5 seconds for: ${unique_id}`);
               this.pollingInterval = setTimeout(pollOnce, 5000);
+            } else {
+              console.log(`🛑 Not scheduling next poll - currentUniqueId: ${this.currentUniqueId}, requested: ${unique_id}`);
             }
           };
 
@@ -1591,9 +1597,11 @@
 
         stopPolling() {
           if (this.pollingInterval) {
-            console.log('🛑 Stopping transaction status polling');
+            console.log(`🛑 Stopping transaction status polling for: ${this.currentUniqueId}`);
             clearTimeout(this.pollingInterval);
             this.pollingInterval = null;
+          } else {
+            console.log('🛑 Polling already stopped or never started');
           }
           this.currentUniqueId = null;
         }
