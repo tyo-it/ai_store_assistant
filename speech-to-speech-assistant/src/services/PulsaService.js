@@ -43,7 +43,7 @@ class PulsaService {
 
         try {
             // Use the MCP server to process the speech command
-            const result = await this.mcpClient.purchasePulsa(phoneNumber, amount, userConfirmation, provider);
+            const result = await this.mcpClient.processSpeechCommand(phoneNumber, amount, userConfirmation, provider);
             return this.formatResponse(result);
         } catch (error) {
             console.error('Error processing pulsa command:', error);
@@ -65,13 +65,13 @@ class PulsaService {
         }
     }
 
-    async purchasePulsa(phoneNumber, amount, confirmed = false) {
+    async purchasePulsa(phoneNumber, amount, confirmed = false, provider = null, referenceNumber = null) {
         if (!this.isConnected) {
             throw new Error('Pulsa service is not connected');
         }
 
         try {
-            const result = await this.mcpClient.purchasePulsa(phoneNumber, amount, confirmed);
+            const result = await this.mcpClient.purchasePulsa(phoneNumber, amount, confirmed, provider, referenceNumber);
             return this.formatResponse(result);
         } catch (error) {
             console.error('Error purchasing pulsa:', error);

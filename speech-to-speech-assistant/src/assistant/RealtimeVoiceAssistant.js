@@ -330,6 +330,7 @@ class RealtimeVoiceAssistant {
                         await this.pulsaService.purchasePulsa(
                             result.raw.phoneNumber,
                             result.raw.amount,
+                            result.raw.understood,
                             result.raw.provider,
                             result.raw.referenceNumber
                         );
