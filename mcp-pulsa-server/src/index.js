@@ -31,10 +31,8 @@ class PulsaMCPServer {
     );
 
     this.fazzagnAPI = new FazzagnAPI({
-      apiKey: process.env.FAZZAGN_API_KEY,
       baseURL: process.env.FAZZAGN_BASE_URL,
-      username: process.env.FAZZAGN_USERNAME,
-      pin: process.env.FAZZAGN_PIN
+      userId: process.env.FAZZAGN_USER_ID
     });
 
     this.validator = new PulsaValidator();
@@ -135,6 +133,20 @@ class PulsaMCPServer {
               },
               required: ["provider"]
             }
+          },
+          {
+            name: "check_transaction_status",
+            description: "Check the status of a pulsa transaction using unique_id",
+            inputSchema: {
+              type: "object",
+              properties: {
+                uniqueId: {
+                  type: "string",
+                  description: "Unique transaction ID from purchase response"
+                }
+              },
+              required: ["uniqueId"]
+            }
           }
         ]
       };
@@ -159,6 +171,9 @@ class PulsaMCPServer {
           
           case "get_pulsa_prices":
             return await this.getPulsaPrices(args);
+          
+          case "check_transaction_status":
+            return await this.checkTransactionStatus(args);
           
           default:
             throw new McpError(
@@ -366,6 +381,36 @@ class PulsaMCPServer {
         content: [{
           type: "text",
           text: `Error getting pulsa prices: ${error.message}`
+        }]
+      };
+    }
+  }
+
+  async checkTransactionStatus(args) {
+    const { uniqueId } = args;
+    
+    try {
+      const status = await this.fazzagnAPI.getTransactionStatus(uniqueId);
+      
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            uniqueId: uniqueId,
+            status: status.status,
+            message: status.message,
+            amount: status.amount,
+            customerNumber: status.customerNumber,
+            createdAt: status.createdAt,
+            completedAt: status.completedAt
+          }, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error checking transaction status: ${error.message}`
         }]
       };
     }

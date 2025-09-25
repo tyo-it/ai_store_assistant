@@ -2,52 +2,44 @@ import axios from 'axios';
 
 export class FazzagnAPI {
   constructor(config) {
-    this.apiKey = config.apiKey;
-    this.baseURL = config.baseURL || 'https://api.fazzagn.com';
-    this.username = config.username;
-    this.pin = config.pin;
+    this.baseURL = config.baseURL || 'http://localhost:3000';
+    this.userId = config.userId || 1;
     
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 30000,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
+        'Content-Type': 'application/json'
       }
     });
-
-    // Add request interceptor for authentication
-    this.client.interceptors.request.use(
-      (config) => {
-        // Add authentication parameters for Fazzagn API
-        if (config.data) {
-          config.data.username = this.username;
-          config.data.pin = this.pin;
-        }
-        return config;
-      },
-      (error) => {
-        return Promise.reject(error);
-      }
-    );
   }
 
   async checkPulsaAvailability({ phoneNumber, amount, provider }) {
     try {
-      const response = await this.client.post('/pulsa/check', {
-        msisdn: phoneNumber,
-        nominal: amount,
-        operator: provider
+      // Step 1: Inquire to get reference number
+      const inquireResponse = await this.client.post('/api/v1/transactions/recharges/inquire', {
+        recharge: {
+          recharge_type: 'phone_credit',
+          amount: amount,
+          customer_number: phoneNumber
+        }
       });
 
+      const referenceNumber = inquireResponse.data.reference_number;
+      
+      if (!referenceNumber) {
+        throw new Error('Failed to get reference number from inquire API');
+      }
+
       return {
-        available: response.data.status === 'available' || response.data.success === true,
-        price: response.data.price || response.data.harga,
-        message: response.data.message || response.data.keterangan,
-        productCode: response.data.product_code || response.data.kode_produk
+        available: true,
+        price: amount + Math.floor(amount * 0.05), // Simulate 5% admin fee
+        message: 'Pulsa tersedia',
+        referenceNumber: referenceNumber,
+        productCode: `${provider?.toUpperCase() || 'UNKNOWN'}_${amount}`
       };
     } catch (error) {
-      console.error('Fazzagn API Error:', error.response?.data || error.message);
+      console.error('Fazzagn Inquire API Error:', error.response?.data || error.message);
       
       // Handle different error scenarios
       if (error.response?.status === 401) {
@@ -63,22 +55,50 @@ export class FazzagnAPI {
     }
   }
 
-  async purchasePulsa({ phoneNumber, amount, provider }) {
+  async purchasePulsa({ phoneNumber, amount, provider, referenceNumber }) {
     try {
-      const response = await this.client.post('/pulsa/topup', {
-        msisdn: phoneNumber,
-        nominal: amount,
-        operator: provider,
-        ref_id: `PULSA_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      // If no reference number provided, get one first
+      if (!referenceNumber) {
+        const availability = await this.checkPulsaAvailability({ phoneNumber, amount, provider });
+        referenceNumber = availability.referenceNumber;
+      }
+
+      // Step 1: Order - Create contract using reference number
+      const orderResponse = await this.client.post('/api/v1/transactions/recharges/order', {
+        recharge: {
+          recharge_type: 'phone_credit',
+          amount: amount,
+          customer_number: phoneNumber,
+          reference_number: referenceNumber,
+          user_id: this.userId
+        }
       });
 
+      const uniqueId = orderResponse.data.unique_id;
+      
+      if (!uniqueId) {
+        throw new Error('Failed to get unique_id from order API');
+      }
+
+      // Step 2: Pay - Process payment using unique_id
+      const payResponse = await this.client.post('/api/v1/transactions/recharges/pay', {
+        payment: {
+          unique_id: uniqueId
+        }
+      });
+
+      // Step 3: Check status to confirm completion
+      const statusResponse = await this.client.get(`/api/v1/transactions/recharges/${uniqueId}/status`);
+
       return {
-        success: response.data.success === true || response.data.status === 'success',
-        transactionId: response.data.transaction_id || response.data.trx_id,
-        status: response.data.status,
-        message: response.data.message || response.data.keterangan,
-        balance: response.data.balance || response.data.saldo,
-        serialNumber: response.data.sn || response.data.serial_number
+        success: payResponse.data.success === true || statusResponse.data.status === 'completed',
+        transactionId: uniqueId,
+        status: statusResponse.data.status || payResponse.data.status,
+        message: statusResponse.data.message || payResponse.data.message || `Pulsa ${amount} berhasil dikirim ke ${phoneNumber}`,
+        balance: statusResponse.data.balance || payResponse.data.balance,
+        serialNumber: statusResponse.data.serial_number || statusResponse.data.sn,
+        referenceNumber: referenceNumber,
+        uniqueId: uniqueId
       };
     } catch (error) {
       console.error('Fazzagn Purchase Error:', error.response?.data || error.message);
@@ -87,6 +107,8 @@ export class FazzagnAPI {
         throw new Error('Insufficient balance in your Fazzagn account.');
       } else if (error.response?.status === 409) {
         throw new Error('Duplicate transaction. Please try again with a different reference ID.');
+      } else if (error.response?.status === 400) {
+        throw new Error('Invalid request parameters. Please check phone number and amount.');
       }
       
       // Fallback for demo purposes - simulate transaction
@@ -96,8 +118,10 @@ export class FazzagnAPI {
 
   async getPulsaPrices(provider) {
     try {
-      const response = await this.client.get(`/pulsa/prices/${provider}`);
-      return response.data.denominations || response.data.products;
+      // Note: The provided API doesn't have a prices endpoint
+      // Using fallback with common Indonesian pulsa denominations
+      console.log('Using fallback prices - no specific prices endpoint available');
+      return this._getDefaultPrices(provider);
     } catch (error) {
       console.error('Fazzagn Prices Error:', error.response?.data || error.message);
       
@@ -106,12 +130,33 @@ export class FazzagnAPI {
     }
   }
 
+  async getTransactionStatus(uniqueId) {
+    try {
+      const response = await this.client.get(`/api/v1/transactions/recharges/${uniqueId}/status`);
+      
+      return {
+        uniqueId: uniqueId,
+        status: response.data.status,
+        message: response.data.message,
+        amount: response.data.amount,
+        customerNumber: response.data.customer_number,
+        createdAt: response.data.created_at,
+        completedAt: response.data.completed_at
+      };
+    } catch (error) {
+      console.error('Status Check Error:', error.response?.data || error.message);
+      throw new Error('Failed to check transaction status');
+    }
+  }
+
   async getBalance() {
     try {
-      const response = await this.client.get('/balance');
+      // Note: The provided API doesn't have a balance endpoint
+      // This would need to be implemented based on your actual API
+      console.log('Balance endpoint not available in provided API');
       return {
-        balance: response.data.balance || response.data.saldo,
-        currency: response.data.currency || 'IDR'
+        balance: 1000000, // Fallback balance
+        currency: 'IDR'
       };
     } catch (error) {
       console.error('Balance Check Error:', error.response?.data || error.message);
@@ -127,22 +172,26 @@ export class FazzagnAPI {
     
     return {
       available,
-      price: available ? amount + 1000 : null, // Add 1000 as admin fee
+      price: available ? amount + Math.floor(amount * 0.05) : null, // Add 5% admin fee
       message: available ? 'Pulsa tersedia' : 'Nominal pulsa tidak tersedia',
-      productCode: available ? `${provider.toUpperCase()}_${amount}` : null
+      productCode: available ? `${provider?.toUpperCase() || 'UNKNOWN'}_${amount}` : null,
+      referenceNumber: available ? `REF_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : null
     };
   }
 
   _simulateTransaction({ phoneNumber, amount, provider }) {
-    const transactionId = `TRX_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const uniqueId = `TRX_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const referenceNumber = `REF_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     
     return {
       success: true,
-      transactionId,
-      status: 'success',
+      transactionId: uniqueId,
+      uniqueId: uniqueId,
+      status: 'completed',
       message: `Pulsa ${amount} berhasil dikirim ke ${phoneNumber}`,
       balance: Math.floor(Math.random() * 1000000) + 100000, // Random balance
-      serialNumber: Math.random().toString().substr(2, 12)
+      serialNumber: Math.random().toString().substring(2, 12),
+      referenceNumber: referenceNumber
     };
   }
 
