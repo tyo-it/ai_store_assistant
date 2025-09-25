@@ -113,6 +113,46 @@ class AIAssistantApp {
                 });
             }
         });
+
+        // Check transaction status endpoint
+        this.app.get('/api/v1/transactions/recharges/:unique_id/status', async (req, res) => {
+            try {
+                const { unique_id } = req.params;
+
+                if (!unique_id) {
+                    return res.status(400).json({
+                        error: 'Missing required parameter: unique_id',
+                        message: 'unique_id is required in URL path'
+                    });
+                }
+
+                console.log(`🔍 Checking transaction status for unique_id: ${unique_id}`);
+
+                const statusResult = await this.processTransactionStatusCheck(unique_id);
+
+                if (statusResult.success) {
+                    console.log(`✅ Status check successful for unique_id: ${unique_id}`);
+                    res.json({
+                        data: statusResult.data
+                    });
+                } else {
+                    console.log(`❌ Status check failed for unique_id: ${unique_id}`);
+                    res.status(400).json({
+                        success: false,
+                        error: 'Status check failed',
+                        message: statusResult.message || 'Could not retrieve transaction status',
+                        unique_id: unique_id
+                    });
+                }
+            } catch (error) {
+                console.error('Transaction status API error:', error);
+                res.status(500).json({
+                    success: false,
+                    error: 'Internal server error',
+                    message: 'An error occurred while checking transaction status'
+                });
+            }
+        });
     }
 
     async processPayment(unique_id) {
@@ -201,6 +241,95 @@ class AIAssistantApp {
             return {
                 success: false,
                 message: 'Payment service temporarily unavailable'
+            };
+        }
+    }
+
+    async processTransactionStatusCheck(unique_id) {
+        const axios = require('axios');
+        const fazz_backend_url = process.env.FAZZ_AGEN_BACKEND_SERVICE_URL;
+
+        if (!fazz_backend_url) {
+            console.error('FAZZ_AGEN_BACKEND_SERVICE_URL not configured');
+            return {
+                success: false,
+                message: 'Status service not configured'
+            };
+        }
+
+        try {
+            console.log(`🔄 Calling Fazz Agen Backend Service for status: ${fazz_backend_url}/api/v1/transactions/recharges/${unique_id}/status`);
+
+            const response = await axios.get(
+                `${fazz_backend_url}/api/v1/transactions/recharges/${unique_id}/status`,
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000 // 10 second timeout
+                }
+            );
+
+            // Handle successful response
+            if (response.status === 200 && response.data && response.data.data) {
+                const statusData = response.data.data;
+                console.log(`✅ Status check successful from Fazz Agen Backend:`, statusData);
+
+                return {
+                    success: true,
+                    data: {
+                        unique_id: statusData.unique_id,
+                        status: statusData.status,
+                        amount: statusData.amount,
+                        recharge_type: statusData.recharge_type,
+                        reference_number: statusData.reference_number,
+                        customer_number: statusData.customer_number,
+                        created_at: statusData.created_at,
+                        updated_at: statusData.updated_at
+                    }
+                };
+            } else {
+                console.log(`❌ Unexpected response format from Fazz Agen Backend:`, response.data);
+                return {
+                    success: false,
+                    message: 'Invalid response from status service'
+                };
+            }
+        } catch (error) {
+            console.error('Transaction status check error:', error.message);
+
+            // Handle HTTP errors
+            if (error.response) {
+                const status = error.response.status;
+                const errorData = error.response.data;
+
+                console.log(`❌ Fazz Agen Backend returned error ${status}:`, errorData);
+
+                return {
+                    success: false,
+                    message: errorData?.message || `Status service error (${status})`,
+                    error_code: status
+                };
+            }
+
+            // Handle network/timeout errors
+            if (error.code === 'ECONNREFUSED') {
+                return {
+                    success: false,
+                    message: 'Status service unavailable'
+                };
+            }
+
+            if (error.code === 'ETIMEDOUT') {
+                return {
+                    success: false,
+                    message: 'Status service timeout'
+                };
+            }
+
+            return {
+                success: false,
+                message: 'Status service temporarily unavailable'
             };
         }
     }
