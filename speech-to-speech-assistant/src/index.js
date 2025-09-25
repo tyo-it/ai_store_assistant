@@ -70,11 +70,11 @@ class AIAssistantApp {
 
             // Try Realtime API first, fallback to regular API
             let clientAssistant;
-            let usingFallback = true;
+            let usingFallback = false;
 
             try {
                 // Try Realtime API first
-                clientAssistant = new FallbackVoiceAssistant();
+                clientAssistant = new RealtimeVoiceAssistant();
                 await clientAssistant.connect();
                 console.log('✅ Using OpenAI Realtime API');
                 socket.emit('status', { 

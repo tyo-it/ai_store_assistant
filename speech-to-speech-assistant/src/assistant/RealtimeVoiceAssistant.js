@@ -17,6 +17,7 @@ class RealtimeVoiceAssistant {
             input_audio_transcription: {
                 model: 'whisper-1'
             },
+            speed: 0.8,
             turn_detection: {
                 type: 'server_vad',
                 threshold: 0.5,

@@ -396,6 +396,11 @@
           this.speechRate = 0.5; // Default fallback - slower speech
           this.speechPitch = 1.0; // Default fallback
 
+          // Audio queue management for realtime streaming
+          this.audioQueue = [];
+          this.isPlayingQueue = false;
+          this.nextStartTime = 0;
+
           this.initializeElements();
           this.setupEventListeners();
           this.setupSocketHandlers();
@@ -555,6 +560,9 @@
         async startRecording() {
           if (!this.isConnected || this.isRecording) return;
 
+          // Clear any existing audio queue before starting new recording
+          this.clearAudioQueue();
+
           if (this.mode === "fallback") {
             // Use browser speech recognition for fallback mode
             if (this.speechRecognition) {
@@ -668,10 +676,22 @@
         }
 
         interrupt() {
+          // Stop current audio
           if (this.currentAudio) {
-            this.currentAudio.pause();
+            this.currentAudio.stop();
             this.currentAudio = null;
           }
+
+          // Clear audio queue
+          this.audioQueue = [];
+          this.isPlayingQueue = false;
+          this.nextStartTime = 0;
+
+          // Reset audio context timing
+          if (this.audioContext) {
+            this.nextStartTime = this.audioContext.currentTime;
+          }
+
           this.socket.emit("interrupt");
           this.updateStatus("Interrupted. Ready for next input.");
         }
@@ -731,6 +751,7 @@
 
             if (!this.audioContext) {
               this.audioContext = new AudioContext();
+              this.nextStartTime = this.audioContext.currentTime;
             }
 
             // For PCM16 data, we need to create an AudioBuffer manually
@@ -747,24 +768,83 @@
               channelData[i] = pcm16Array[i] / 32768;
             }
 
+            // Add to queue instead of playing immediately
+            this.audioQueue.push({
+              buffer: audioBufferObj,
+              timestamp: Date.now(),
+            });
+
+            // Start processing queue if not already running
+            if (!this.isPlayingQueue) {
+              this.processAudioQueue();
+            }
+          } catch (error) {
+            console.error("Error preparing audio delta:", error);
+          }
+        }
+
+        processAudioQueue() {
+          if (this.audioQueue.length === 0 || this.isPlayingQueue) {
+            return;
+          }
+
+          this.isPlayingQueue = true;
+
+          const playNextChunk = () => {
+            if (this.audioQueue.length === 0) {
+              this.isPlayingQueue = false;
+              return;
+            }
+
+            const audioChunk = this.audioQueue.shift();
             const source = this.audioContext.createBufferSource();
-            source.buffer = audioBufferObj;
+            source.buffer = audioChunk.buffer;
 
             // Apply speech rate control for Realtime API audio
-            // Use the speechRate from server settings (default 0.5 for slower speech)
             const effectiveRate = this.speechRate || 0.5;
             source.playbackRate.value = effectiveRate;
 
+            source.connect(this.audioContext.destination);
+
+            // Calculate when to start this chunk to maintain continuity
+            const now = this.audioContext.currentTime;
+            const startTime = Math.max(now, this.nextStartTime);
+
+            // Calculate duration with playback rate applied
+            const chunkDuration = audioChunk.buffer.duration / effectiveRate;
+            this.nextStartTime = startTime + chunkDuration;
+
+            source.onended = () => {
+              // Play next chunk when this one ends
+              setTimeout(playNextChunk, 10); // Small delay to prevent gaps
+            };
+
             console.log(
-              `🎵 Playing audio at ${effectiveRate}x speed (speechRate: ${this.speechRate})`
+              `🎵 Playing audio chunk at ${effectiveRate}x speed, duration: ${chunkDuration.toFixed(
+                3
+              )}s`
             );
 
-            source.connect(this.audioContext.destination);
-            source.start();
-
+            source.start(startTime);
             this.currentAudio = source;
-          } catch (error) {
-            console.error("Error playing audio:", error);
+          };
+
+          playNextChunk();
+        }
+
+        clearAudioQueue() {
+          // Stop current audio
+          if (this.currentAudio) {
+            this.currentAudio.stop();
+            this.currentAudio = null;
+          }
+
+          // Clear queue and reset timing
+          this.audioQueue = [];
+          this.isPlayingQueue = false;
+
+          if (this.audioContext) {
+            this.nextStartTime = this.audioContext.currentTime;
           }
         }
 
