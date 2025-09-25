@@ -35,7 +35,7 @@ class VoiceAssistant {
             
             // Convert response to speech with slower, clearer settings
             const audioResponse = await this.textToSpeech.synthesize(aiResponse.text, {
-                speed: parseFloat(process.env.SPEECH_RATE) || 0.5,
+                speed: parseFloat(process.env.SPEECH_RATE) || 1,
                 pitch: parseFloat(process.env.SPEECH_PITCH) || 0
             });
             

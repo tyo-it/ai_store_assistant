@@ -81,7 +81,7 @@ class AIAssistantApp {
                     connected: true, 
                     message: 'Connected to OpenAI Realtime API',
                     mode: 'realtime',
-                    speechRate: parseFloat(process.env.SPEECH_RATE) || 0.5,
+                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
                     speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
                 });
             } catch (realtimeError) {
@@ -96,12 +96,12 @@ class AIAssistantApp {
                     connected: true, 
                     message: 'Connected to OpenAI Chat API (Fallback Mode)',
                     mode: 'fallback',
-                    speechRate: parseFloat(process.env.SPEECH_RATE) || 0.5,
+                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
                     speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
                 });
             }
 
-            this.clientSessions.set(socket.id, clientAssistant);
+            this.clientSessions.set(socket.id, { assistant: clientAssistant, usingFallback });
 
             // Set up event handlers for this client's assistant
             if (usingFallback) {
@@ -112,33 +112,33 @@ class AIAssistantApp {
 
             // Handle audio streaming from client
             socket.on('audio-stream', (audioData) => {
-                const assistant = this.clientSessions.get(socket.id);
-                if (assistant && assistant.isConnected) {
+                const clientSession = this.clientSessions.get(socket.id);
+                if (clientSession && clientSession.assistant && clientSession.assistant.isConnected) {
                     // Convert incoming audio data to buffer
                     const audioBuffer = Buffer.from(audioData, 'base64');
-                    assistant.sendAudio(audioBuffer);
+                    clientSession.assistant.sendAudio(audioBuffer);
                 }
             });
 
             // Handle audio stream end
             socket.on('audio-stream-end', () => {
-                const assistant = this.clientSessions.get(socket.id);
-                if (assistant && assistant.isConnected) {
-                    assistant.commitAudio();
+                const clientSession = this.clientSessions.get(socket.id);
+                if (clientSession && clientSession.assistant && clientSession.assistant.isConnected) {
+                    clientSession.assistant.commitAudio();
                 }
             });
 
             // Handle text messages
             socket.on('text-message', async (message) => {
-                const assistant = this.clientSessions.get(socket.id);
-                if (assistant && assistant.isConnected) {
-                    if (assistant.sendTextMessage) {
+                const clientSession = this.clientSessions.get(socket.id);
+                if (clientSession && clientSession.assistant && clientSession.assistant.isConnected) {
+                    if (clientSession.assistant.sendTextMessage) {
                         // Realtime API
-                        assistant.sendTextMessage(message);
-                    } else if (assistant.processTextMessage) {
+                        clientSession.assistant.sendTextMessage(message);
+                    } else if (clientSession.assistant.processTextMessage) {
                         // Fallback API
                         try {
-                            await assistant.processTextMessage(message);
+                            await clientSession.assistant.processTextMessage(message);
                         } catch (error) {
                             socket.emit('error', 'Failed to process message: ' + error.message);
                         }
@@ -147,28 +147,55 @@ class AIAssistantApp {
             });
 
             // Handle voice settings changes
-            socket.on('change-voice', (voice) => {
-                const assistant = this.clientSessions.get(socket.id);
-                if (assistant && assistant.isConnected) {
-                    assistant.setVoice(voice);
-                    socket.emit('status', { message: `Voice changed to ${voice}` });
+            socket.on('change-voice', async (voice) => {
+                const clientSession = this.clientSessions.get(socket.id);
+                if (clientSession && clientSession.assistant && clientSession.assistant.isConnected) {
+                    try {
+                        console.log(`🎙️ Voice change request from client: ${voice}`);
+                        socket.emit('status', { message: `Clearing audio and changing voice to ${voice}...` });
+                        
+                        const success = await clientSession.assistant.setVoice(voice);
+                        
+                        if (success) {
+                            console.log(`✅ Voice change successful: ${voice}`);
+                            socket.emit('status', { 
+                                message: `Voice successfully changed to ${voice}`,
+                                connected: true,
+                                mode: clientSession.usingFallback ? 'fallback' : 'realtime',
+                                speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
+                                speechPitch: parseFloat(process.env.SPEECH_PITCH) || 0
+                            });
+                        } else {
+                            console.log(`❌ Voice change failed: ${voice}`);
+                            socket.emit('error', `Failed to change voice to ${voice}. Please try again.`);
+                        }
+                    } catch (error) {
+                        console.error('Voice change error:', error.message);
+                        if (error.message.includes('assistant audio is present')) {
+                            socket.emit('error', `Voice change partially failed: Audio is still present. Voice may have changed despite the error.`);
+                        } else {
+                            socket.emit('error', `Voice change failed: ${error.message}`);
+                        }
+                    }
+                } else {
+                    socket.emit('error', 'Assistant not connected');
                 }
             });
 
             // Handle interruption
             socket.on('interrupt', () => {
-                const assistant = this.clientSessions.get(socket.id);
-                if (assistant && assistant.isConnected) {
-                    assistant.interrupt();
+                const clientSession = this.clientSessions.get(socket.id);
+                if (clientSession && clientSession.assistant && clientSession.assistant.isConnected) {
+                    clientSession.assistant.interrupt();
                 }
             });
 
             // Handle disconnect
             socket.on('disconnect', () => {
                 console.log('Client disconnected:', socket.id);
-                const assistant = this.clientSessions.get(socket.id);
-                if (assistant) {
-                    assistant.disconnect();
+                const clientSession = this.clientSessions.get(socket.id);
+                if (clientSession && clientSession.assistant) {
+                    clientSession.assistant.disconnect();
                     this.clientSessions.delete(socket.id);
                 }
             });

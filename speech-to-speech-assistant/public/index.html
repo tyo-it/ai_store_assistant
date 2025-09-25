@@ -393,7 +393,7 @@
           this.speechSynthesis = window.speechSynthesis;
 
           // Speech settings (will be updated from server)
-          this.speechRate = 0.5; // Default fallback - slower speech
+          this.speechRate = 1.0; // Default fallback - slower speech
           this.speechPitch = 1.0; // Default fallback
 
           // Audio queue management for realtime streaming
@@ -446,6 +446,9 @@
 
           // Voice selection
           this.voiceSelect.addEventListener("change", (e) => {
+            // Interrupt any ongoing audio before changing voice
+            console.log(`🎙️ Changing voice to: ${e.target.value}`);
+            this.interrupt(); // Clear any playing audio on client side
             this.socket.emit("change-voice", e.target.value);
           });
 
@@ -469,7 +472,7 @@
               this.mode = data.mode || "unknown";
 
               // Store speech settings from server
-              this.speechRate = data.speechRate || 0.5;
+              this.speechRate = data.speechRate || 1.0;
               this.speechPitch = data.speechPitch || 1.0;
               console.log(
                 `🎤 Speech settings received from server: rate=${this.speechRate}, pitch=${this.speechPitch}, mode=${this.mode}`
@@ -801,7 +804,7 @@
             source.buffer = audioChunk.buffer;
 
             // Apply speech rate control for Realtime API audio
-            const effectiveRate = this.speechRate || 0.5;
+            const effectiveRate = this.speechRate || 1.0;
             source.playbackRate.value = effectiveRate;
 
             source.connect(this.audioContext.destination);
@@ -865,7 +868,7 @@
               const audio = new Audio(audioUrl);
 
               // Apply speech rate control
-              const effectiveRate = this.speechRate || 0.5;
+              const effectiveRate = this.speechRate || 1.0;
               audio.playbackRate = effectiveRate;
 
               audio.onplay = () => {
@@ -967,7 +970,7 @@
             }
 
             // Use dynamic speech settings from server
-            utterance.rate = this.speechRate || 0.5; // Fallback to 0.5 if not set
+            utterance.rate = this.speechRate || 1.0; // Fallback to 1.0 if not set
             utterance.pitch = this.speechPitch || 1.0; // Fallback to 1.0 if not set
             utterance.volume = 1.0;
 
