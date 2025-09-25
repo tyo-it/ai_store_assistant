@@ -23,7 +23,7 @@ Fix the AI voice to speak clearly and not in a hurry, ensuring all words are pro
 - Enhanced AI instructions to emphasize slow, clear speech
 - Updated turn detection settings for more natural pauses:
   - `prefix_padding_ms`: 300 → 500ms
-  - `silence_duration_ms`: 500 → 800ms
+  - `silence_duration_ms`: 500 → 600ms
 - Improved system prompt for measured, calm speaking pace
 
 ### 4. **VoiceAssistant.js - Standard OpenAI API**

@@ -412,6 +412,16 @@
       align-items: center;
       padding: 1rem;
       z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+    }
+
+    .modal-overlay.hide {
+      opacity: 0;
     }
 
     .modal {
@@ -422,6 +432,14 @@
       padding: 1.5rem;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
       text-align: center;
+      transform: scale(0.7) translateY(-50px);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+
+    .modal.show {
+      transform: scale(1) translateY(0);
+      opacity: 1;
     }
 
     .modal h3 {
@@ -495,6 +513,78 @@
       text-align: right;
       flex: 1;
       margin-left: 1rem;
+    }
+
+    /* Success message styling */
+    .success-message {
+      background: linear-gradient(135deg, #28a745, #20c997);
+      color: white;
+      padding: 2rem 1.5rem;
+      border-radius: 16px;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 32px rgba(40, 167, 69, 0.3);
+      transform: translateY(-20px);
+      opacity: 0;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .success-message.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .success-message .success-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      display: block;
+      animation: bounceIn 0.6s ease-out 0.2s both;
+    }
+
+    .success-message h3 {
+      color: white;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      animation: slideInUp 0.5s ease-out 0.3s both;
+    }
+
+    .success-message p {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 1rem;
+      margin-bottom: 0;
+      animation: slideInUp 0.5s ease-out 0.4s both;
+    }
+
+    @keyframes bounceIn {
+      0% {
+        transform: scale(0.3);
+        opacity: 0;
+      }
+
+      50% {
+        transform: scale(1.05);
+      }
+
+      70% {
+        transform: scale(0.9);
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideInUp {
+      0% {
+        transform: translateY(30px);
+        opacity: 0;
+      }
+
+      100% {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
 
     .modal-actions {
@@ -582,27 +672,37 @@
     <!-- Custom Stop Modal with QR Code -->
     <div id="stopDialog" class="modal-overlay" style="display: none">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="stopDialogTitle">
-        <p>Pindai QR untuk untuk melakukan pembayaran.</p>
-        <canvas id="qr-code"></canvas>
-
-        <!-- Transaction Information -->
-        <div class="transaction-info">
-          <div class="info-row">
-            <span class="info-label">ID Transaksi:</span>
-            <span class="info-value" id="transaction-id">-</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Nomor HP:</span>
-            <span class="info-value" id="phone-number">-</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Jumlah:</span>
-            <span class="info-value" id="amount">-</span>
-          </div>
+        <!-- Success Message (hidden by default) -->
+        <div id="success-message" class="success-message" style="display: none;">
+          <div class="success-icon">✅</div>
+          <h3>Pembayaran berhasil!</h3>
+          <p>Transaksi Anda telah diproses dengan sukses.</p>
         </div>
 
-        <div class="modal-actions">
-          <button id="stopCancel" class="confirm-btn yes">Tutup</button>
+        <!-- Payment Content (shown by default) -->
+        <div id="payment-content">
+          <p>Pindai QR untuk untuk melakukan pembayaran.</p>
+          <canvas id="qr-code"></canvas>
+
+          <!-- Transaction Information -->
+          <div class="transaction-info">
+            <div class="info-row">
+              <span class="info-label">ID Transaksi:</span>
+              <span class="info-value" id="transaction-id">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Nomor HP:</span>
+              <span class="info-value" id="phone-number">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Jumlah:</span>
+              <span class="info-value" id="amount">-</span>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button id="stopCancel" class="confirm-btn yes">Tutup</button>
+          </div>
         </div>
       </div>
     </div>
@@ -636,6 +736,9 @@
           // Transaction polling management
           this.pollingInterval = null;
           this.currentUniqueId = null;
+
+          // Success tracking for thank you message
+          this.paymentSuccessful = false;
 
           this.initializeElements();
           this.setupEventListeners();
@@ -719,14 +822,16 @@
           if (stopCancel) {
             stopCancel.addEventListener("click", () => {
               this.stopPolling(); // Stop transaction polling
-              if (stopOverlay) stopOverlay.style.display = "none";
+              this.paymentSuccessful = false; // Reset flag to prevent thank you on manual close
+              this.hideDialog();
             });
           }
           if (stopOverlay) {
             stopOverlay.addEventListener("click", (e) => {
               if (e.target === stopOverlay) {
                 this.stopPolling(); // Stop transaction polling
-                stopOverlay.style.display = "none";
+                this.paymentSuccessful = false; // Reset flag to prevent thank you on manual close
+                this.hideDialog();
               }
             });
           }
@@ -832,8 +937,8 @@
           this.socket.on("pending-purchase", (data) => {
             console.log("pending-purchase", data);
 
-            const overlay = document.getElementById("stopDialog");
-            if (overlay) overlay.style.display = "flex";
+            // Show dialog with animation
+            this.showDialog();
 
             // Update transaction information
             const transactionIdElement = document.getElementById("transaction-id");
@@ -1566,14 +1671,13 @@
             const status = await this.checkTransactionStatus(unique_id);
 
             if (status === 'completed') {
-              console.log('✅ Transaction completed, stopping polling and closing dialog');
+              console.log('✅ Transaction completed, stopping polling and showing success message');
               this.stopPolling();
 
-              // Close the dialog
-              const overlay = document.getElementById("stopDialog");
-              if (overlay) overlay.style.display = "none";
+              // Show success message for 2 seconds, then auto-close
+              this.showSuccessMessage();
 
-              // Optional: Show success message
+              // Also update status bar
               this.updateStatus("Payment completed successfully!");
 
             } else if (status) {
@@ -1604,6 +1708,111 @@
             console.log('🛑 Polling already stopped or never started');
           }
           this.currentUniqueId = null;
+        }
+
+        showDialog() {
+          const overlay = document.getElementById("stopDialog");
+          const modal = overlay?.querySelector('.modal');
+
+          if (overlay && modal) {
+            // Show overlay and start animation
+            overlay.style.display = "flex";
+
+            // Force reflow to ensure display change takes effect
+            overlay.offsetHeight;
+
+            // Add animation classes
+            overlay.classList.add('show');
+            modal.classList.add('show');
+          }
+        }
+
+        hideDialog() {
+          const overlay = document.getElementById("stopDialog");
+          const modal = overlay?.querySelector('.modal');
+
+          if (overlay && modal) {
+            // Start hide animation
+            overlay.classList.add('hide');
+            overlay.classList.remove('show');
+            modal.classList.remove('show');
+
+            // Hide after animation completes
+            setTimeout(() => {
+              overlay.style.display = "none";
+              overlay.classList.remove('hide');
+
+              // Reset success message state
+              this.hideSuccessMessage();
+              this.showPaymentContent();
+
+              // If this was a successful payment, prompt AI to thank customer
+              if (this.paymentSuccessful) {
+                console.log('💬 Prompting AI to thank customer after successful payment');
+                this.socket.emit("text-message", "[System][Payment completed successfully][Thank your customer]");
+                this.paymentSuccessful = false; // Reset flag
+              }
+            }, 300); // Match CSS transition duration
+          }
+        }
+
+        showSuccessMessage() {
+          const successMessage = document.getElementById("success-message");
+          const paymentContent = document.getElementById("payment-content");
+
+          if (successMessage && paymentContent) {
+            console.log('🎉 Showing success message');
+
+            // Flag this as a successful payment close
+            this.paymentSuccessful = true;
+
+            // Hide payment content
+            paymentContent.style.display = "none";
+
+            // Show and animate success message
+            successMessage.style.display = "block";
+
+            // Force reflow
+            successMessage.offsetHeight;
+
+            successMessage.classList.add('show');
+
+            // Auto-close after 2 seconds
+            setTimeout(() => {
+              console.log('⏰ Auto-closing success dialog after 2 seconds');
+              this.hideDialog();
+            }, 2000);
+          }
+        }
+
+        hideSuccessMessage() {
+          const successMessage = document.getElementById("success-message");
+
+          if (successMessage) {
+            successMessage.classList.remove('show');
+            successMessage.style.display = "none";
+
+            // Reset animation states for next time
+            const icon = successMessage.querySelector('.success-icon');
+            const h3 = successMessage.querySelector('h3');
+            const p = successMessage.querySelector('p');
+
+            [icon, h3, p].forEach(el => {
+              if (el) {
+                el.style.animation = 'none';
+                el.offsetHeight; // Trigger reflow
+                el.style.animation = null;
+              }
+            });
+          }
+        }
+
+        showPaymentContent() {
+          const paymentContent = document.getElementById("payment-content");
+
+          if (paymentContent) {
+            paymentContent.style.display = "block";
+          }
         }
       }
 
