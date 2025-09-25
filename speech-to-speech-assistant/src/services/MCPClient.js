@@ -113,8 +113,7 @@ class MCPClient extends EventEmitter {
 
     async processSpeechCommand(speechText, sessionId) {
         return await this.callTool('process_speech_command', {
-            speech_text: speechText,
-            session_id: sessionId
+            speechText: speechText
         });
     }
 }

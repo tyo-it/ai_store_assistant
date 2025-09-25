@@ -17,7 +17,7 @@ class RealtimeVoiceAssistant {
             voice: 'alloy',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
-            instructions: 'You are a helpful AI assistant that can help with general questions and pulsa/mobile credit purchases. Please respond in Bahasa Indonesia and speak very slowly and clearly, with natural pauses between sentences and words for better understanding. Take your time with each word, pronounce everything distinctly, and avoid rushing. Use a calm, measured pace throughout your responses. Always respond in Indonesian language. For pulsa purchases, ask for phone number and amount, then ask for confirmation before proceeding.',
+            instructions: 'You are a helpful AI assistant for pulsa/mobile credit purchases in Indonesia. Always respond in Bahasa Indonesia with a slow, clear pace. When users mention pulsa, kredit, top up, isi ulang, or want to buy mobile credit: 1) Use process_pulsa_request to understand their request, 2) Use validate_phone_number if needed, 3) Use check_pulsa_availability to verify availability, 4) Ask for confirmation before purchase. Always speak slowly and clearly with natural pauses.',
             input_audio_transcription: {
                 model: 'whisper-1'
             },
@@ -28,7 +28,57 @@ class RealtimeVoiceAssistant {
                 prefix_padding_ms: 300,
                 silence_duration_ms: 800
             },
-            tools: [],
+            tools: [
+                {
+                    type: "function",
+                    name: "check_pulsa_availability",
+                    description: "Check if pulsa/mobile credit is available for a phone number and amount",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            phoneNumber: {
+                                type: "string",
+                                description: "Indonesian phone number (format: 08xxxxxxxxxx or +62xxxxxxxxx)"
+                            },
+                            amount: {
+                                type: "number",
+                                description: "Pulsa amount in Rupiah (e.g., 10000, 25000, 50000)"
+                            }
+                        },
+                        required: ["phoneNumber", "amount"]
+                    }
+                },
+                {
+                    type: "function",
+                    name: "validate_phone_number",
+                    description: "Validate Indonesian phone number and detect the mobile provider",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            phoneNumber: {
+                                type: "string",
+                                description: "Phone number to validate"
+                            }
+                        },
+                        required: ["phoneNumber"]
+                    }
+                },
+                {
+                    type: "function",
+                    name: "process_pulsa_request",
+                    description: "Process natural language pulsa purchase request from user speech",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            speechText: {
+                                type: "string",
+                                description: "User's speech text containing pulsa request"
+                            }
+                        },
+                        required: ["speechText"]
+                    }
+                }
+            ],
             tool_choice: 'auto',
             temperature: 0.8,
             max_response_output_tokens: 4096
@@ -133,11 +183,13 @@ class RealtimeVoiceAssistant {
 
     // Handle incoming realtime events
     handleRealtimeEvent(event) {
-        console.log(`📨 Received event: ${event.type}`);
+        // console.log(`📨 Received event: ${event.type}`);
         
         // Log full event data for debugging response events
         if (event.type.startsWith('response.')) {
-            console.log('🔍 Full response event:', JSON.stringify(event, null, 2));
+            if (!event.type.includes('audio')) {
+                console.log('🔍 Full response event:', JSON.stringify(event, null, 2));
+            }
         }
 
         // Emit to registered handlers
@@ -169,11 +221,11 @@ class RealtimeVoiceAssistant {
                 break;
             
             case 'response.audio.delta':
-                console.log('🎵 Audio delta received');
+                // console.log('🎵 Audio delta received');
                 break;
             
             case 'response.audio_transcript.delta':
-                console.log('📝 Audio transcript delta received');
+                // console.log('📝 Audio transcript delta received');
                 break;
             
             case 'response.text.delta':
@@ -186,10 +238,38 @@ class RealtimeVoiceAssistant {
             
             case 'response.content_part.added':
                 console.log('📝 Content part added:', event.part?.type);
+                // Handle function calls that come as content parts
+                if (event.part?.type === 'function_call') {
+                    console.log('🔧 Function call content part:', event.part);
+                    if (event.part.name && event.part.arguments) {
+                        this.handleFunctionCall({
+                            name: event.part.name,
+                            arguments: event.part.arguments,
+                            call_id: event.part.call_id
+                        });
+                    }
+                }
                 break;
             
             case 'response.audio_transcript.done':
                 console.log('✅ Audio transcript done:', event.transcript);
+                break;
+            
+            case 'response.function_call_arguments.delta':
+                // console.log('🔧 Function call arguments delta:', event.delta);
+                break;
+            
+            case 'response.function_call_arguments.done':
+                // console.log('🔧 Function call arguments done:', event.name, event.arguments);
+                this.handleFunctionCall(event);
+                break;
+            
+            case 'response.output_item.added':
+                console.log('📄 Output item added:', event.item?.type);
+                // Handle function calls that come as output items
+                if (event.item?.type === 'function_call') {
+                    console.log('🔧 Function call output item:', event.item);
+                }
                 break;
             
             case 'input_audio_buffer.speech_started':
@@ -203,6 +283,93 @@ class RealtimeVoiceAssistant {
             case 'error':
                 console.error('❌ Realtime API error:', event.error);
                 break;
+        }
+    }
+
+    // Handle function calls from OpenAI and route to MCP server
+    async handleFunctionCall(event) {
+        try {
+            const functionName = event.name;
+            const functionArgs = JSON.parse(event.arguments);
+            
+            console.log(`🔧 [REALTIME] Function call: ${functionName}`);
+            console.log(`📤 [REALTIME] Function args:`, functionArgs);
+            
+            let result;
+            
+            switch (functionName) {
+                case 'check_pulsa_availability':
+                    result = await this.pulsaService.checkAvailability(
+                        functionArgs.phoneNumber, 
+                        functionArgs.amount
+                    );
+                    break;
+                    
+                case 'validate_phone_number':
+                    result = await this.pulsaService.validatePhoneNumber(
+                        functionArgs.phoneNumber
+                    );
+                    break;
+                    
+                case 'process_pulsa_request':
+                    result = await this.pulsaService.processPulsaCommand(
+                        functionArgs.speechText,
+                        this.sessionId
+                    );
+                    
+                    // If this is a pulsa request that needs confirmation, store it
+                    if (result.success && result.data && result.data.readyToPurchase) {
+                        this.pendingPurchase = {
+                            phoneNumber: result.data.phoneNumber,
+                            amount: result.data.amount,
+                            provider: result.data.provider
+                        };
+                    }
+                    break;
+                    
+                default:
+                    result = {
+                        success: false,
+                        message: `Unknown function: ${functionName}`
+                    };
+            }
+            
+            console.log(`📥 [REALTIME] Function result:`, result);
+            
+            // Send the function result back to OpenAI
+            this.send({
+                type: 'conversation.item.create',
+                item: {
+                    type: 'function_call_output',
+                    call_id: event.call_id,
+                    output: JSON.stringify(result)
+                }
+            });
+            
+            // Generate response based on the function result
+            this.send({
+                type: 'response.create'
+            });
+            
+        } catch (error) {
+            console.error('❌ [REALTIME] Function call error:', error);
+            
+            // Send error response back to OpenAI
+            this.send({
+                type: 'conversation.item.create',
+                item: {
+                    type: 'function_call_output',
+                    call_id: event.call_id,
+                    output: JSON.stringify({
+                        success: false,
+                        message: `Function call failed: ${error.message}`
+                    })
+                }
+            });
+            
+            this.send({
+                type: 'response.create'
+            });
         }
     }
 
