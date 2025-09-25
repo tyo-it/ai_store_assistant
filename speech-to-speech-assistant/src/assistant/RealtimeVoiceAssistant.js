@@ -13,6 +13,7 @@ class RealtimeVoiceAssistant {
             voice: 'alloy',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
+            instructions: 'You are a helpful AI assistant. Please speak slowly and clearly, with natural pauses between sentences for better understanding.',
             input_audio_transcription: {
                 model: 'whisper-1'
             },
@@ -263,7 +264,7 @@ class RealtimeVoiceAssistant {
             type: 'response.create',
             response: {
                 modalities: ['text', 'audio'],
-                instructions: 'Please respond helpfully and conversationally.'
+                instructions: 'Please respond helpfully and conversationally. Speak slowly and clearly for better understanding.'
             }
         };
 

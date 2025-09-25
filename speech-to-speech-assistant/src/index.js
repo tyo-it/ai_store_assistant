@@ -80,7 +80,9 @@ class AIAssistantApp {
                 socket.emit('status', { 
                     connected: true, 
                     message: 'Connected to OpenAI Realtime API',
-                    mode: 'realtime'
+                    mode: 'realtime',
+                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1.0,
+                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 1.0
                 });
             } catch (realtimeError) {
                 console.log('⚠️ Realtime API not available, using fallback mode');
@@ -93,7 +95,9 @@ class AIAssistantApp {
                 socket.emit('status', { 
                     connected: true, 
                     message: 'Connected to OpenAI Chat API (Fallback Mode)',
-                    mode: 'fallback'
+                    mode: 'fallback',
+                    speechRate: parseFloat(process.env.SPEECH_RATE) || 1.0,
+                    speechPitch: parseFloat(process.env.SPEECH_PITCH) || 1.0
                 });
             }
 

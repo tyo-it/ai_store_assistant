@@ -72,7 +72,7 @@ class FallbackVoiceAssistant {
                 messages: [
                     {
                         role: 'system',
-                        content: 'You are a helpful AI assistant. Provide concise, helpful responses suitable for both text and speech output. Keep responses conversational and under 150 words.'
+                        content: 'You are a helpful AI assistant. Provide concise, helpful responses suitable for both text and speech output. Keep responses conversational and under 150 words. When your response will be spoken aloud, structure it with natural pauses and clear pronunciation in mind.'
                     },
                     ...this.conversationHistory.slice(-10) // Keep last 10 messages for context
                 ],
