@@ -19,7 +19,7 @@ class AIAssistantApp {
         this.port = process.env.PORT || 3000;
         this.realtimeAssistant = new RealtimeVoiceAssistant();
         this.clientSessions = new Map(); // Track client sessions
-        
+
         this.setupMiddleware();
         this.setupRoutes();
         this.setupSocketHandlers();
@@ -33,7 +33,7 @@ class AIAssistantApp {
 
     setupRoutes() {
         this.app.get('/', (req, res) => {
-            res.json({ 
+            res.json({
                 message: 'Voice AI Assistant is running!',
                 status: 'active',
                 endpoints: {
@@ -116,34 +116,88 @@ class AIAssistantApp {
     }
 
     async processPayment(unique_id) {
-        // Simulate payment processing
-        // In a real application, you would:
-        // 1. Validate the unique_id
-        // 2. Call your actual payment microservice
-        // 3. Handle the response from the microservice
+        const axios = require('axios');
+        const fazz_backend_url = process.env.FAZZ_AGEN_BACKEND_SERVICE_URL;
+
+        if (!fazz_backend_url) {
+            console.error('FAZZ_AGEN_BACKEND_SERVICE_URL not configured');
+            return {
+                success: false,
+                message: 'Payment service not configured'
+            };
+        }
 
         try {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log(`🔄 Calling Fazz Agen Backend Service: ${fazz_backend_url}/api/v1/transactions/recharges/pay`);
 
-            // Simulate random success/failure for demo purposes
-            // In production, remove this and implement actual payment logic
-            const isSuccess = Math.random() > 0.1; // 90% success rate for demo
+            const response = await axios.post(
+                `${fazz_backend_url}/api/v1/transactions/recharges/pay`,
+                {
+                    payment: {
+                        unique_id: unique_id
+                    }
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000 // 10 second timeout
+                }
+            );
 
-            if (isSuccess) {
+            // Handle successful response
+            if (response.status === 200 && response.data && response.data.data) {
+                const paymentData = response.data.data;
+                console.log(`✅ Payment successful from Fazz Agen Backend:`, paymentData);
+
                 return {
                     success: true,
-                    transaction_id: `txn_${Date.now()}_${unique_id}`,
+                    reference_number: paymentData.reference_number,
+                    unique_id: paymentData.unique_id,
+                    status: paymentData.status,
+                    amount: paymentData.amount,
+                    recharge_type: paymentData.recharge_type,
                     message: 'Payment processed successfully'
                 };
             } else {
+                console.log(`❌ Unexpected response format from Fazz Agen Backend:`, response.data);
                 return {
                     success: false,
-                    message: 'Payment declined by payment processor'
+                    message: 'Invalid response from payment service'
                 };
             }
         } catch (error) {
-            console.error('Payment processing error:', error);
+            console.error('Payment processing error:', error.message);
+
+            // Handle HTTP errors
+            if (error.response) {
+                const status = error.response.status;
+                const errorData = error.response.data;
+
+                console.log(`❌ Fazz Agen Backend returned error ${status}:`, errorData);
+
+                return {
+                    success: false,
+                    message: errorData?.message || `Payment service error (${status})`,
+                    error_code: status
+                };
+            }
+
+            // Handle network/timeout errors
+            if (error.code === 'ECONNREFUSED') {
+                return {
+                    success: false,
+                    message: 'Payment service unavailable'
+                };
+            }
+
+            if (error.code === 'ETIMEDOUT') {
+                return {
+                    success: false,
+                    message: 'Payment service timeout'
+                };
+            }
+
             return {
                 success: false,
                 message: 'Payment service temporarily unavailable'
@@ -164,8 +218,8 @@ class AIAssistantApp {
                 clientAssistant = new RealtimeVoiceAssistant();
                 await clientAssistant.connect();
                 console.log('✅ Using OpenAI Realtime API');
-                socket.emit('status', { 
-                    connected: true, 
+                socket.emit('status', {
+                    connected: true,
                     message: 'Connected to OpenAI Realtime API',
                     mode: 'realtime',
                     speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
@@ -173,14 +227,14 @@ class AIAssistantApp {
                 });
             } catch (realtimeError) {
                 console.log('⚠️ Realtime API not available, using fallback mode');
-                
+
                 // Use fallback assistant
                 clientAssistant = new FallbackVoiceAssistant();
                 await clientAssistant.connect();
                 usingFallback = true;
                 console.log('✅ Using OpenAI Chat API (fallback mode)');
-                socket.emit('status', { 
-                    connected: true, 
+                socket.emit('status', {
+                    connected: true,
                     message: 'Connected to OpenAI Chat API (Fallback Mode)',
                     mode: 'fallback',
                     speechRate: parseFloat(process.env.SPEECH_RATE) || 1,
@@ -240,12 +294,12 @@ class AIAssistantApp {
                     try {
                         console.log(`🎙️ Voice change request from client: ${voice}`);
                         socket.emit('status', { message: `Clearing audio and changing voice to ${voice}...` });
-                        
+
                         const success = await clientSession.assistant.setVoice(voice);
-                        
+
                         if (success) {
                             console.log(`✅ Voice change successful: ${voice}`);
-                            socket.emit('status', { 
+                            socket.emit('status', {
                                 message: `Voice successfully changed to ${voice}`,
                                 connected: true,
                                 mode: clientSession.usingFallback ? 'fallback' : 'realtime',
@@ -280,14 +334,14 @@ class AIAssistantApp {
                                 type: 'text-complete',
                                 text: response.text
                             });
-                            
+
                             // Also generate audio response
                             if (clientSession.assistant.textToSpeech) {
                                 const audioResponse = await clientSession.assistant.textToSpeech.synthesize(response.text, {
                                     speed: parseFloat(process.env.SPEECH_RATE) || 1,
                                     pitch: parseFloat(process.env.SPEECH_PITCH) || 0
                                 });
-                                
+
                                 socket.emit('audio-response', {
                                     type: 'audio-complete',
                                     audio: audioResponse
@@ -420,25 +474,25 @@ class AIAssistantApp {
                 type: 'text-complete',
                 text: event.text
             });
-            
+
             // Apply TTS to convert text to speech
             try {
                 const TextToSpeech = require('./assistant/TextToSpeech');
                 const tts = new TextToSpeech();
-                
+
                 console.log('🔊 Converting AI response to speech:', event.text);
                 const audioResponse = await tts.synthesize(event.text, {
                     speed: parseFloat(process.env.SPEECH_RATE) || 0.6,
                     pitch: parseFloat(process.env.SPEECH_PITCH) || 0
                 });
-                
+
                 // Send audio response to client
                 socket.emit('audio-response', {
                     type: 'audio-complete',
                     audio: audioResponse,
                     text: event.text
                 });
-                
+
                 console.log('✅ Audio response sent to client');
             } catch (error) {
                 console.error('❌ TTS Error:', error.message);
