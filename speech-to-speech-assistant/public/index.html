@@ -593,17 +593,21 @@
               },
             });
 
-            this.audioContext = new AudioContext({ sampleRate: 24000 });
-            const source = this.audioContext.createMediaStreamSource(stream);
+            // Use separate AudioContext for recording to avoid conflicts with playback
+            this.recordingAudioContext = new AudioContext({
+              sampleRate: 24000,
+            });
+            const source =
+              this.recordingAudioContext.createMediaStreamSource(stream);
 
             // Create a script processor for real-time audio data
-            const processor = this.audioContext.createScriptProcessor(
+            const processor = this.recordingAudioContext.createScriptProcessor(
               4096,
               1,
               1
             );
             source.connect(processor);
-            processor.connect(this.audioContext.destination);
+            processor.connect(this.recordingAudioContext.destination);
 
             processor.onaudioprocess = (event) => {
               if (this.isRecording) {
@@ -647,8 +651,8 @@
               this.processor.disconnect();
             }
 
-            if (this.audioContext) {
-              this.audioContext.close();
+            if (this.recordingAudioContext) {
+              this.recordingAudioContext.close();
             }
 
             this.socket.emit("audio-stream-end");
@@ -752,29 +756,49 @@
             // Create audio from base64 PCM16 data
             const audioBuffer = this.base64ToArrayBuffer(audioData);
 
+            // Initialize AudioContext with consistent sample rate if not exists
             if (!this.audioContext) {
-              this.audioContext = new AudioContext();
+              this.audioContext = new AudioContext({ sampleRate: 24000 });
               this.nextStartTime = this.audioContext.currentTime;
+              console.log(
+                `🎵 AudioContext initialized at ${this.audioContext.sampleRate}Hz`
+              );
+            }
+
+            // Ensure AudioContext is running
+            if (this.audioContext.state === "suspended") {
+              await this.audioContext.resume();
             }
 
             // For PCM16 data, we need to create an AudioBuffer manually
             const pcm16Array = new Int16Array(audioBuffer);
+
+            // Skip empty or very small audio chunks that can cause noise
+            if (pcm16Array.length < 32) {
+              console.log(
+                "🔇 Skipping very small audio chunk to prevent noise"
+              );
+              return;
+            }
+
             const audioBufferObj = this.audioContext.createBuffer(
               1,
               pcm16Array.length,
-              24000
+              24000 // Match the PCM16 sample rate exactly
             );
             const channelData = audioBufferObj.getChannelData(0);
 
-            // Convert PCM16 to float32
+            // Convert PCM16 to float32 with better normalization
             for (let i = 0; i < pcm16Array.length; i++) {
-              channelData[i] = pcm16Array[i] / 32768;
+              // Normalize to [-1, 1] range with proper scaling
+              channelData[i] = pcm16Array[i] / 32768.0;
             }
 
-            // Add to queue instead of playing immediately
+            // Add to queue with better timing info
             this.audioQueue.push({
               buffer: audioBufferObj,
               timestamp: Date.now(),
+              duration: audioBufferObj.duration,
             });
 
             // Start processing queue if not already running
@@ -807,26 +831,56 @@
             const effectiveRate = this.speechRate || 1.0;
             source.playbackRate.value = effectiveRate;
 
-            source.connect(this.audioContext.destination);
+            // Create a gain node for smooth volume control
+            const gainNode = this.audioContext.createGain();
+            source.connect(gainNode);
+            gainNode.connect(this.audioContext.destination);
 
-            // Calculate when to start this chunk to maintain continuity
+            // Calculate when to start this chunk to maintain perfect continuity
             const now = this.audioContext.currentTime;
-            const startTime = Math.max(now, this.nextStartTime);
+            let startTime;
+
+            if (this.nextStartTime <= now) {
+              // If we're behind schedule, start immediately but don't accumulate delay
+              startTime = now;
+              this.nextStartTime = now;
+            } else {
+              // Start at the scheduled time for perfect continuity
+              startTime = this.nextStartTime;
+            }
 
             // Calculate duration with playback rate applied
             const chunkDuration = audioChunk.buffer.duration / effectiveRate;
             this.nextStartTime = startTime + chunkDuration;
 
+            // Add slight fade in/out to prevent clicks between chunks
+            const fadeTime = Math.min(0.002, chunkDuration / 4); // 2ms or 1/4 of chunk duration
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(1, startTime + fadeTime);
+            gainNode.gain.setValueAtTime(
+              1,
+              startTime + chunkDuration - fadeTime
+            );
+            gainNode.gain.linearRampToValueAtTime(0, startTime + chunkDuration);
+
             source.onended = () => {
-              // Play next chunk when this one ends
-              setTimeout(playNextChunk, 10); // Small delay to prevent gaps
+              // Immediately play next chunk without delay for seamless audio
+              if (this.audioQueue.length > 0) {
+                playNextChunk();
+              } else {
+                this.isPlayingQueue = false;
+              }
             };
 
-            console.log(
-              `🎵 Playing audio chunk at ${effectiveRate}x speed, duration: ${chunkDuration.toFixed(
-                3
-              )}s`
-            );
+            // Debug logging (reduce frequency to avoid spam)
+            if (Math.random() < 0.1) {
+              // Only log ~10% of chunks
+              console.log(
+                `🎵 Playing audio chunk: ${effectiveRate}x speed, ${chunkDuration.toFixed(
+                  3
+                )}s, queue: ${this.audioQueue.length}`
+              );
+            }
 
             source.start(startTime);
             this.currentAudio = source;
@@ -836,9 +890,16 @@
         }
 
         clearAudioQueue() {
-          // Stop current audio
+          console.log("🧹 Clearing audio queue and stopping playback");
+
+          // Stop current audio gracefully
           if (this.currentAudio) {
-            this.currentAudio.stop();
+            try {
+              this.currentAudio.stop();
+            } catch (e) {
+              // Audio source might already be stopped
+              console.log("Audio source already stopped");
+            }
             this.currentAudio = null;
           }
 
