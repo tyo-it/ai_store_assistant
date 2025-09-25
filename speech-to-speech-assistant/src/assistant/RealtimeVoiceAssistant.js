@@ -4,9 +4,10 @@ const path = require('path');
 const PulsaService = require('../services/PulsaService');
 
 class RealtimeVoiceAssistant {
-    constructor() {
+    constructor(client_ws = null) {
         this.apiKey = process.env.OPENAI_API_KEY;
         this.ws = null;
+        this.client_ws = client_ws;
         this.isConnected = false;
         this.pulsaService = new PulsaService();
         this.sessionId = this.generateSessionId();
@@ -188,7 +189,7 @@ class RealtimeVoiceAssistant {
         // Log full event data for debugging response events
         if (event.type.startsWith('response.')) {
             if (!event.type.includes('audio')) {
-                console.log('🔍 Full response event:', JSON.stringify(event, null, 2));
+                // console.log('🔍 Full response event:', JSON.stringify(event, null, 2));
             }
         }
 
@@ -201,7 +202,7 @@ class RealtimeVoiceAssistant {
         // Built-in event handling
         switch (event.type) {
             case 'session.created':
-                // console.log('✅ Session created');
+                console.log('✅ Session created');
                 break;
             
             case 'session.updated':
@@ -237,10 +238,10 @@ class RealtimeVoiceAssistant {
                 break;
             
             case 'response.content_part.added':
-                console.log('📝 Content part added:', event.part?.type);
-                // Handle function calls that come as content parts
+                // console.log('📝 Content part added:', event.part?.type);
+                // // Handle function calls that come as content parts
                 if (event.part?.type === 'function_call') {
-                    console.log('🔧 Function call content part:', event.part);
+                    // console.log('🔧 Function call content part:', event.part);
                     if (event.part.name && event.part.arguments) {
                         this.handleFunctionCall({
                             name: event.part.name,
@@ -318,23 +319,23 @@ class RealtimeVoiceAssistant {
                     );
                     
                     // If this is a pulsa request that needs confirmation, store it
-                    if (result.success && result.data && result.data.readyToPurchase) {
+                    if (result.raw && result.raw.understood && result.raw.readyToPurchase) {
                         this.pendingPurchase = {
-                            phoneNumber: result.data.phoneNumber,
-                            amount: result.data.amount,
-                            provider: result.data.provider
+                            phoneNumber: result.raw.phoneNumber,
+                            amount: result.raw.amount,
+                            provider: result.raw.provider
                         };
+                        this.client_ws?.emit('pending-purchase', result.raw);
                     }
                     break;
                     
-                default:
-                    result = {
-                        success: false,
-                        message: `Unknown function: ${functionName}`
-                    };
-            }
-            
-            console.log(`📥 [REALTIME] Function result:`, result);
+                    default:
+                        result = {
+                            success: false,
+                            message: `Unknown function: ${functionName}`
+                        };
+                    }
+                    console.log(`📥 [REALTIME] Function result:`, result);
             
             // Send the function result back to OpenAI
             this.send({

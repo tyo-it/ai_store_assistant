@@ -111,6 +111,7 @@ class PulsaService {
                         success: parsedContent.success || parsedContent.valid || parsedContent.available || false,
                         message: parsedContent.message || parsedContent.response || textContent.text,
                         data: parsedContent.data || null,
+                        raw: parsedContent,
                         needsConfirmation: parsedContent.needs_confirmation || false,
                         confirmationMessage: parsedContent.confirmation_message || null
                     };

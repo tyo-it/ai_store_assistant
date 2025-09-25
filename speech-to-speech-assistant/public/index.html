@@ -613,6 +613,10 @@
               this.displayMessage("transcript", `You said: "${data.text}"`);
             }
           });
+          
+          this.socket.on("pending-purchase", (data) => {
+            console.log("pending-purchase", data);
+          })
 
           this.socket.on("error", (error) => {
             console.error("Socket error:", error);
@@ -940,14 +944,14 @@
             };
 
             // Debug logging (reduce frequency to avoid spam)
-            if (Math.random() < 0.1) {
-              // Only log ~10% of chunks
-              console.log(
-                `🎵 Playing audio chunk: ${effectiveRate}x speed, ${chunkDuration.toFixed(
-                  3
-                )}s, queue: ${this.audioQueue.length}`
-              );
-            }
+            // if (Math.random() < 0.1) {
+            //   // Only log ~10% of chunks
+            //   console.log(
+            //     `🎵 Playing audio chunk: ${effectiveRate}x speed, ${chunkDuration.toFixed(
+            //       3
+            //     )}s, queue: ${this.audioQueue.length}`
+            //   );
+            // }
 
             source.start(startTime);
             this.currentAudio = source;

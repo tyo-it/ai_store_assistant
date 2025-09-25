@@ -74,7 +74,7 @@ class AIAssistantApp {
 
             try {
                 // Try Realtime API first
-                clientAssistant = new RealtimeVoiceAssistant();
+                clientAssistant = new RealtimeVoiceAssistant(socket);
                 await clientAssistant.connect();
                 console.log('✅ Using OpenAI Realtime API');
                 socket.emit('status', { 
@@ -88,7 +88,7 @@ class AIAssistantApp {
                 console.log('⚠️ Realtime API not available, using fallback mode');
                 
                 // Use fallback assistant
-                clientAssistant = new FallbackVoiceAssistant();
+                clientAssistant = new FallbackVoiceAssistant(socket);
                 await clientAssistant.connect();
                 usingFallback = true;
                 console.log('✅ Using OpenAI Chat API (fallback mode)');
@@ -184,6 +184,7 @@ class AIAssistantApp {
 
             // Handle pulsa confirmation
             socket.on('pulsa-confirmation', async (data) => {
+                console.log(data);
                 const clientSession = this.clientSessions.get(socket.id);
                 if (clientSession && clientSession.assistant) {
                     try {
