@@ -424,7 +424,6 @@ class PulsaMCPServer {
             available: true,
             price: availability.price,
             readyToPurchase: true,
-            transactionId: this.generateTransactionId(),
             message: `Ready to purchase pulsa ${parsedCommand.amount} for ${parsedCommand.phoneNumber} (${validation.provider}). Price: ${availability.price}`
           }, null, 2)
         }]

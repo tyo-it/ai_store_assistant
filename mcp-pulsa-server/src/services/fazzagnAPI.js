@@ -40,7 +40,7 @@ export class FazzagnAPI {
       console.log('📥 [FAZZAGN API] Inquire Response Status:', inquireResponse.status);
       console.log('📥 [FAZZAGN API] Inquire Response Data:', JSON.stringify(inquireResponse.data, null, 2));
 
-      const referenceNumber = inquireResponse.data.reference_number;
+      const referenceNumber = inquireResponse.data.data.reference_number;
       
       if (!referenceNumber) {
         console.error('❌ [FAZZAGN API] No reference number received from inquire API');
